@@ -78,7 +78,7 @@ final class HomeController extends AbstractController
             'saved_addresses' => $savedAddresses,
             'google_maps_api_key' => (string) $parameterBag->get('app.google_maps_api_key'),
             'walkthrough_enabled' => (bool) $parameterBag->get('app.walkthrough_enabled'),
-            'logo_url' => '/logo-simple-vertical.png',
+            'logo_url' => '/images/branding/logo-simple-vertical.png',
         ]);
     }
 }

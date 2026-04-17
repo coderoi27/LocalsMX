@@ -12,6 +12,7 @@ use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\DependencyInjection\ParameterBag\ParameterBagInterface;
 use Symfony\Component\HttpFoundation\RedirectResponse;
 use Symfony\Component\HttpFoundation\Request;
+use Symfony\Component\Mailer\Exception\TransportExceptionInterface;
 use Symfony\Component\Mailer\MailerInterface;
 use Symfony\Component\Mime\Address;
 use Symfony\Component\Mime\Email;
@@ -75,10 +76,23 @@ final class AlphaInvitationRequestController extends AbstractController
             ->html($this->renderView('emails/public_alpha_invitation.html.twig', [
                 'invitation_url' => $absoluteInvitationUrl,
                 'expires_at' => $expiresAt,
-                'logo_url' => $request->getSchemeAndHttpHost() . '/logo-simple-vertical.png',
+                'logo_url' => $request->getSchemeAndHttpHost() . '/images/branding/logo-simple-vertical.png',
             ]));
 
-        $mailer->send($emailMessage);
+        $mailerDsn = trim((string) $parameterBag->get('app.mailer_dsn'));
+        if ($mailerDsn === '' || str_starts_with($mailerDsn, 'null://')) {
+            $this->addFlash('error', 'MAILER_DSN sigue en null://null. Configura SMTP real en producción para poder enviar el enlace alpha.');
+
+            return $this->redirectToRoute('public_home');
+        }
+
+        try {
+            $mailer->send($emailMessage);
+        } catch (TransportExceptionInterface|\Throwable $exception) {
+            $this->addFlash('error', sprintf('No se pudo enviar el correo alpha: %s', $exception->getMessage()));
+
+            return $this->redirectToRoute('public_home');
+        }
 
         $this->addFlash('success', 'Te enviamos un enlace de acceso alpha a tu correo.');
 

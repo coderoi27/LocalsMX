@@ -11,6 +11,7 @@ parameters:
     app.alpha_from_email: '%env(default::PUBLIC_ALPHA_FROM_EMAIL)%'
     app.alpha_from_name: '%env(default::PUBLIC_ALPHA_FROM_NAME)%'
     app.alpha_invitation_expiry_days: '%env(int:default::PUBLIC_ALPHA_INVITATION_EXPIRY_DAYS)%'
+    app.mailer_dsn: '%env(default::MAILER_DSN)%'
 
 services:
     # default configuration for services in *this* file
