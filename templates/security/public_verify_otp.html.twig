@@ -1,0 +1,30 @@
+{% extends 'base.html.twig' %}
+
+{% block title %}Verificar OTP{% endblock %}
+
+{% block body %}
+    <main style="min-height: 100vh; display: grid; place-items: center; background: linear-gradient(180deg, #f9fafb 0%, #eef2f7 100%); padding: 1.5rem;">
+        <section style="width: 100%; max-width: 420px; background: #ffffff; border: 1px solid #e5e7eb; border-radius: 20px; padding: 2rem;">
+            <h1 style="margin: 0 0 0.75rem;">Verifica tu correo</h1>
+            <p style="margin: 0 0 1rem; color: #4b5563;">Captura el codigo OTP enviado a <strong>{{ email }}</strong>.</p>
+
+            {% if error is defined %}
+                <div style="margin-bottom: 1rem; border-radius: 12px; background: #fef2f2; color: #991b1b; padding: 0.9rem 1rem;">
+                    {{ error }}
+                </div>
+            {% endif %}
+
+            {% if dev_otp_code is defined and dev_otp_code %}
+                <div style="margin-bottom: 1rem; border-radius: 12px; background: #fefce8; color: #854d0e; padding: 0.9rem 1rem;">
+                    OTP de desarrollo: <strong>{{ dev_otp_code }}</strong>
+                </div>
+            {% endif %}
+
+            <form method="post" action="{{ path('public_verify_otp') }}">
+                <input type="hidden" name="email" value="{{ email }}">
+                <input type="text" name="code" maxlength="6" required placeholder="123456" style="width: 100%; margin-bottom: 1rem; border: 1px solid #d1d5db; border-radius: 12px; padding: 0.85rem 1rem;">
+                <button type="submit" style="width: 100%; border: none; border-radius: 12px; background: #111827; color: #ffffff; padding: 0.9rem 1rem; font-weight: 700;">Verificar</button>
+            </form>
+        </section>
+    </main>
+{% endblock %}

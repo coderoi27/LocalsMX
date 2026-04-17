@@ -1,0 +1,38 @@
+{% extends 'base.html.twig' %}
+
+{% block title %}Mi Monchis MX Alpha{% endblock %}
+
+{% block body %}
+    <main class="alpha-gate">
+        {% for label, messages in app.flashes %}
+            {% for message in messages %}
+                <div class="alpha-gate__flash alpha-gate__flash--{{ label }}">{{ message }}</div>
+            {% endfor %}
+        {% endfor %}
+
+        <section class="alpha-gate__card">
+            <p class="alpha-gate__eyebrow">Alpha exclusiva</p>
+            <h1 class="alpha-gate__title">Solicita tu acceso a Mi Monchis</h1>
+            <p class="alpha-gate__copy">
+                Ingresa tu correo y te enviaremos un enlace privado con token temporal para explorar la demo.
+            </p>
+
+            <form method="post" action="{{ path('public_alpha_invitation_request') }}" class="alpha-gate__form">
+                <label class="alpha-gate__label" for="email">Correo del usuario publico</label>
+                <input
+                    id="email"
+                    name="email"
+                    type="email"
+                    class="alpha-gate__input"
+                    placeholder="tu-correo@dominio.com"
+                    required
+                >
+                <button type="submit" class="alpha-gate__submit">Enviar enlace de invitacion</button>
+            </form>
+
+            <div class="alpha-gate__hint">
+                El enlace incluye un token con caducidad. Si vence, el usuario vuelve a esta pantalla para solicitar uno nuevo.
+            </div>
+        </section>
+    </main>
+{% endblock %}

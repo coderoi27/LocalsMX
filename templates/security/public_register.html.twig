@@ -1,0 +1,24 @@
+{% extends 'base.html.twig' %}
+
+{% block title %}Crear cuenta{% endblock %}
+
+{% block body %}
+    <main style="min-height: 100vh; display: grid; place-items: center; background: linear-gradient(180deg, #f9fafb 0%, #eef2f7 100%); padding: 1.5rem;">
+        <section style="width: 100%; max-width: 480px; background: #ffffff; border: 1px solid #e5e7eb; border-radius: 20px; padding: 2rem;">
+            <h1 style="margin: 0 0 1rem;">Crear cuenta</h1>
+            {% if error is defined %}
+                <div style="margin-bottom: 1rem; border-radius: 12px; background: #fef2f2; color: #991b1b; padding: 0.9rem 1rem;">
+                    {{ error }}
+                </div>
+            {% endif %}
+            <form method="post">
+                <input type="text" name="first_name" required placeholder="Nombre" style="width: 100%; margin-bottom: 1rem; border: 1px solid #d1d5db; border-radius: 12px; padding: 0.85rem 1rem;">
+                <input type="text" name="last_name" required placeholder="Apellido" style="width: 100%; margin-bottom: 1rem; border: 1px solid #d1d5db; border-radius: 12px; padding: 0.85rem 1rem;">
+                <input type="email" name="email" required placeholder="Email" style="width: 100%; margin-bottom: 1rem; border: 1px solid #d1d5db; border-radius: 12px; padding: 0.85rem 1rem;">
+                <input type="password" name="password" required placeholder="Password" style="width: 100%; margin-bottom: 1rem; border: 1px solid #d1d5db; border-radius: 12px; padding: 0.85rem 1rem;">
+                <input type="hidden" name="registration_origin" value="organic">
+                <button type="submit" style="width: 100%; border: none; border-radius: 12px; background: #111827; color: #ffffff; padding: 0.9rem 1rem; font-weight: 700;">Continuar</button>
+            </form>
+        </section>
+    </main>
+{% endblock %}

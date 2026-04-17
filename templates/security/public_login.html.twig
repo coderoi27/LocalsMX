@@ -1,0 +1,22 @@
+{% extends 'base.html.twig' %}
+
+{% block title %}Iniciar sesion{% endblock %}
+
+{% block body %}
+    <main style="min-height: 100vh; display: grid; place-items: center; background: linear-gradient(180deg, #f9fafb 0%, #eef2f7 100%); padding: 1.5rem;">
+        <section style="width: 100%; max-width: 420px; background: #ffffff; border: 1px solid #e5e7eb; border-radius: 20px; padding: 2rem;">
+            <h1 style="margin: 0 0 1rem;">Iniciar sesion</h1>
+            {% if error %}
+                <div style="margin-bottom: 1rem; border-radius: 12px; background: #fef2f2; color: #991b1b; padding: 0.9rem 1rem;">
+                    {{ error.messageKey|trans(error.messageData, 'security') }}
+                </div>
+            {% endif %}
+            <form method="post">
+                <input type="email" name="_username" value="{{ last_username }}" required placeholder="Email" style="width: 100%; margin-bottom: 1rem; border: 1px solid #d1d5db; border-radius: 12px; padding: 0.85rem 1rem;">
+                <input type="password" name="_password" required placeholder="Password" style="width: 100%; margin-bottom: 1rem; border: 1px solid #d1d5db; border-radius: 12px; padding: 0.85rem 1rem;">
+                <input type="hidden" name="_csrf_token" value="{{ csrf_token('authenticate') }}">
+                <button type="submit" style="width: 100%; border: none; border-radius: 12px; background: #111827; color: #ffffff; padding: 0.9rem 1rem; font-weight: 700;">Entrar</button>
+            </form>
+        </section>
+    </main>
+{% endblock %}

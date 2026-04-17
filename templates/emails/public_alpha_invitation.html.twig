@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="es">
+    <body style="margin:0;padding:0;background:#fff8f0;font-family:'Avenir Next','Nunito Sans','Segoe UI',sans-serif;color:#0F172A;">
+        <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="padding:32px 16px;">
+            <tr>
+                <td align="center">
+                    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:560px;background:#ffffff;border-radius:28px;overflow:hidden;box-shadow:0 28px 60px rgba(15,23,42,0.10);">
+                        <tr>
+                            <td style="padding:32px 32px 12px;text-align:center;">
+                                <img src="{{ logo_url }}" alt="Mi Monchis" style="width:92px;height:auto;margin:0 auto 18px;display:block;">
+                                <div style="color:#F27F0D;font-size:13px;font-weight:800;letter-spacing:0.14em;text-transform:uppercase;">Acceso alpha</div>
+                                <h1 style="margin:14px 0 10px;font-size:34px;line-height:1.02;letter-spacing:-0.05em;color:#0F172A;">Tu invitacion ya esta lista</h1>
+                                <p style="margin:0;color:#64748B;font-size:16px;line-height:1.65;">
+                                    Entra a la demo privada de Mi Monchis con este enlace temporal.
+                                </p>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td style="padding:20px 32px 8px;text-align:center;">
+                                <a href="{{ invitation_url }}" style="display:inline-block;padding:16px 24px;border-radius:18px;background:#F27F0D;color:#ffffff;text-decoration:none;font-size:16px;font-weight:800;box-shadow:0 18px 36px rgba(242,127,13,0.26);">
+                                    Entrar a Mi Monchis
+                                </a>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td style="padding:16px 32px 32px;text-align:center;">
+                                <p style="margin:0;color:#64748B;font-size:14px;line-height:1.65;">
+                                    {% if expires_at %}
+                                        Este enlace vence el {{ expires_at|date('d/m/Y H:i') }}.
+                                    {% else %}
+                                        Este enlace es temporal y de uso exclusivo para la demo alpha.
+                                    {% endif %}
+                                </p>
+                                <p style="margin:12px 0 0;color:#94A3B8;font-size:12px;line-height:1.6;">
+                                    Si el enlace ya caduco, solicita uno nuevo desde mimonchis.mx.
+                                </p>
+                            </td>
+                        </tr>
+                    </table>
+                </td>
+            </tr>
+        </table>
+    </body>
+</html>

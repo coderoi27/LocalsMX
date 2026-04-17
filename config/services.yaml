@@ -4,6 +4,13 @@
 # Put parameters here that don't need to change on each machine where the app is deployed
 # https://symfony.com/doc/current/best_practices.html#use-parameters-for-application-configuration
 parameters:
+    app.core_api_base_url: '%env(default::CORE_API_BASE_URL)%'
+    app.google_maps_api_key: '%env(default::GOOGLE_MAPS_API_KEY)%'
+    app.alpha_invite_required: '%env(bool:default::PUBLIC_ALPHA_INVITE_REQUIRED)%'
+    app.walkthrough_enabled: '%env(bool:default::PUBLIC_WALKTHROUGH_ENABLED)%'
+    app.alpha_from_email: '%env(default::PUBLIC_ALPHA_FROM_EMAIL)%'
+    app.alpha_from_name: '%env(default::PUBLIC_ALPHA_FROM_NAME)%'
+    app.alpha_invitation_expiry_days: '%env(int:default::PUBLIC_ALPHA_INVITATION_EXPIRY_DAYS)%'
 
 services:
     # default configuration for services in *this* file
@@ -19,6 +26,18 @@ services:
             - '../src/DependencyInjection/'
             - '../src/Entity/'
             - '../src/Kernel.php'
+
+    App\Service\Public\CoreFeedClient:
+        arguments:
+            $coreApiBaseUrl: '%app.core_api_base_url%'
+
+    App\Service\Public\AlphaAccessClient:
+        arguments:
+            $coreApiBaseUrl: '%app.core_api_base_url%'
+
+    App\Service\Public\InvitationRequestClient:
+        arguments:
+            $coreApiBaseUrl: '%app.core_api_base_url%'
 
     # add more service definitions when explicit configuration is needed
     # please note that last definitions always *replace* previous ones
