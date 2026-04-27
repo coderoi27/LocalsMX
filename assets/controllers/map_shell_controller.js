@@ -7,9 +7,12 @@ export default class extends Controller {
         'count',
         'list',
         'heroLocation',
+        'chipRow',
         'categoryChip',
         'notificationsButton',
         'notificationsPanel',
+        'locationSwitcherButton',
+        'locationSwitcher',
         'notificationsBadge',
         'favoritesCount',
         'favoritesCountDuplicate',
@@ -58,6 +61,12 @@ export default class extends Controller {
         this.currentLocations = [];
         this.visibleLocations = [];
         this.currentFeedSource = 'canonical';
+        this.categoryDefinitions = {
+            taqueria: { label: 'Tacos' },
+            vegetariano: { label: 'Veggie' },
+            cafeteria: { label: 'Café' },
+            restaurante: { label: 'Comida' },
+        };
         this.selectedLocationId = null;
         this.activeCategoryFilter = 'all';
         this.map = null;
@@ -67,10 +76,16 @@ export default class extends Controller {
         this.currentMapTypeId = 'roadmap';
         this.walkthroughTypingTimer = null;
         this.walkthroughHideTimer = null;
+        this.mapIdleTimer = null;
         this.walkthroughPredictions = [];
         this.walkthroughSelection = null;
         this.userMarker = null;
         this.notificationsOpen = false;
+        this.locationSwitcherOpen = false;
+        this.placeDetailsCache = new Map();
+        this.lastDiscoveryCenter = null;
+        this.isDiscoveringPlaces = false;
+        this.isSyncingMapViewport = false;
         this.renderFavoritesSummary();
         this.renderAddressesSummary();
         const walkthroughIsActive = this.initializeWalkthrough();
@@ -85,6 +100,9 @@ export default class extends Controller {
         }
         if (this.walkthroughHideTimer) {
             window.clearTimeout(this.walkthroughHideTimer);
+        }
+        if (this.mapIdleTimer) {
+            window.clearTimeout(this.mapIdleTimer);
         }
     }
 
@@ -233,6 +251,33 @@ export default class extends Controller {
         }
     }
 
+    toggleLocationSwitcher() {
+        this.locationSwitcherOpen = !this.locationSwitcherOpen;
+        this.renderLocationSwitcherState();
+    }
+
+    closeLocationSwitcherOnOutsideClick(event) {
+        if (!this.locationSwitcherOpen || !this.hasLocationSwitcherTarget || !this.hasLocationSwitcherButtonTarget) {
+            return;
+        }
+
+        const clickedInsidePanel = this.locationSwitcherTarget.contains(event.target);
+        const clickedButton = this.locationSwitcherButtonTarget.contains(event.target);
+        if (!clickedInsidePanel && !clickedButton) {
+            this.locationSwitcherOpen = false;
+            this.renderLocationSwitcherState();
+        }
+    }
+
+    async selectSavedAddress(event) {
+        const { lat, lng, label } = event.currentTarget.dataset;
+        this.applyCoordinates(Number(lat), Number(lng));
+        this.updateHeroLocation(label);
+        await this.loadFeed();
+        this.locationSwitcherOpen = false;
+        this.renderLocationSwitcherState();
+    }
+
     async focusLocation(event) {
         const interactiveElement = event.target.closest('button, a, input, label, form');
         if (interactiveElement) {
@@ -250,13 +295,14 @@ export default class extends Controller {
         }
 
         this.setSelectedLocation(locationKey);
+        const enrichedLocation = await this.enrichLocationIfNeeded(location);
 
         if (this.googleMapsReady && this.map) {
-            this.focusMapLocation(location);
+            this.focusMapLocation(enrichedLocation);
             return;
         }
 
-        this.setStatus(`Local seleccionado: ${location.location_name ?? locationKey}.`);
+        this.setStatus(`Local seleccionado: ${enrichedLocation.location_name ?? locationKey}.`);
     }
 
     async toggleFavorite(event) {
@@ -379,15 +425,16 @@ export default class extends Controller {
             let locations = canonicalLocations;
             this.currentFeedSource = 'canonical';
 
-            if (canonicalLocations.length === 0 && this.hasUserCoordinates() && this.googleMapsApiKeyValue && this.googleMapsApiKeyValue.trim() !== '') {
-                const fallbackLocations = await this.fetchNearbyPlacesFallback();
-                if (fallbackLocations.length > 0) {
-                    locations = fallbackLocations;
-                    this.currentFeedSource = 'places_fallback';
+            if (this.shouldFetchGooglePlaces()) {
+                const googleLocations = await this.fetchNearbyPlacesFallback();
+                if (googleLocations.length > 0) {
+                    locations = this.mergeLocationsWithGooglePlaces(canonicalLocations, googleLocations);
+                    this.currentFeedSource = canonicalLocations.length > 0 ? 'hybrid' : 'places_fallback';
                 }
             }
 
             this.currentLocations = locations;
+            this.renderCategoryChips(locations);
             const filteredLocations = this.filteredLocations(locations);
             this.visibleLocations = filteredLocations;
             const selectedLocation = filteredLocations.find((location) => this.locationKey(location) === this.selectedLocationId) ?? filteredLocations[0] ?? null;
@@ -406,12 +453,12 @@ export default class extends Controller {
 
             if (this.currentFeedSource === 'places_fallback') {
                 this.setStatus(locations.length > 0
-                    ? 'Mostrando lugares cercanos descubiertos desde Google Places.'
-                    : 'No encontré lugares cercanos desde Google Places.');
+                    ? 'Explora locales cercanos.'
+                    : 'No encontré lugares cercanos.');
                 return;
             }
 
-            this.setStatus(locations.length > 0 ? 'Feed cargado correctamente.' : 'Feed cargado sin resultados.');
+            this.setStatus(locations.length > 0 ? 'Explora locales cercanos.' : 'Aún no hay locales visibles.');
         } catch (error) {
             this.setStatus(`No se pudo cargar el feed: ${error.message}`);
             if (this.hasListTarget) {
@@ -421,15 +468,10 @@ export default class extends Controller {
         }
     }
 
-    applyCategoryFilter(event) {
+    async applyCategoryFilter(event) {
         const nextFilter = event.currentTarget.dataset.categoryFilter ?? 'all';
         this.activeCategoryFilter = nextFilter;
-
-        if (this.hasCategoryChipTarget) {
-            this.categoryChipTargets.forEach((chip) => {
-                chip.classList.toggle('is-active', chip.dataset.categoryFilter === nextFilter);
-            });
-        }
+        this.renderCategoryChips();
 
         this.visibleLocations = this.filteredLocations(this.currentLocations);
         const selectedStillVisible = this.visibleLocations.find((location) => this.locationKey(location) === this.selectedLocationId);
@@ -439,12 +481,12 @@ export default class extends Controller {
 
         this.countTarget.textContent = String(this.visibleLocations.length);
         this.renderList(this.visibleLocations);
-        this.renderCanvas(this.visibleLocations);
+        await this.renderCanvas(this.visibleLocations);
         this.syncFavoriteButtons();
         this.syncActiveCard();
-        this.setStatus(this.visibleLocations.length > 0
-            ? `Filtro aplicado: ${event.currentTarget.textContent?.trim() ?? nextFilter}.`
-            : 'No encontré locales para ese filtro.');
+        if (this.visibleLocations.length === 0) {
+            this.setStatus('No encontré locales para esa categoría.');
+        }
     }
 
     renderList(locations) {
@@ -465,8 +507,9 @@ export default class extends Controller {
                 data-location-key="${this.escapeHtml(this.locationKey(location))}"
                 data-card-location-key="${this.escapeHtml(this.locationKey(location))}"
             >
-                <div class="mobile-map-card__media mobile-map-card__media--${this.mediaTone(location)}">
+                <div class="mobile-map-card__media mobile-map-card__media--${this.mediaTone(location)} ${location.photo_url ? 'has-photo' : ''}" ${this.mediaStyle(location)}>
                     ${this.canFavorite(location) ? this.favoriteButtonMarkup(Number(location.location_id)) : ''}
+                    <span class="mobile-map-card__source-badge ${this.sourceBadgeClass(location)}">${this.escapeHtml(this.sourceTypeLabel(location.source_type))}</span>
                     <div class="mobile-map-card__distance">
                         <svg viewBox="0 0 24 24" aria-hidden="true">
                             <path d="M12 3.5 19 7v10l-7 3.5L5 17V7l7-3.5Z"></path>
@@ -482,12 +525,12 @@ export default class extends Controller {
                     <h3>${this.escapeHtml(location.location_name ?? 'Sin nombre')}</h3>
                     <p>${this.escapeHtml(this.cardSubtitle(location))}</p>
                     <div class="mobile-map-card__meta">
-                        <span class="mobile-map-card__status">${this.escapeHtml(this.publicationStatusLabel(location.publication_state))}</span>
+                        <span class="mobile-map-card__status ${this.publicationStatusClass(location)}">${this.escapeHtml(this.publicationStatusLabel(location))}</span>
                         <span class="mobile-map-card__reviews">
                             <svg viewBox="0 0 24 24" aria-hidden="true">
                                 <path d="m12 3.8 2.6 5.3 5.8.8-4.2 4.1 1 5.8L12 17.1 6.8 19.8l1-5.8-4.2-4.1 5.8-.8L12 3.8Z"></path>
                             </svg>
-                            Sin reviews
+                            ${this.escapeHtml(this.reviewsLabel(location))}
                         </span>
                     </div>
                 </div>
@@ -495,10 +538,10 @@ export default class extends Controller {
         `).join('');
     }
 
-    async renderCanvas(locations) {
+    async renderCanvas(locations, options = {}) {
         if (this.googleMapsApiKeyValue && this.googleMapsApiKeyValue.trim() !== '') {
             try {
-                await this.renderGoogleMap(locations);
+                await this.renderGoogleMap(locations, options);
                 return;
             } catch (error) {
                 this.setCanvasNote(`Google Maps no se pudo inicializar: ${error.message}`);
@@ -517,6 +560,87 @@ export default class extends Controller {
         }
 
         return locations.filter((location) => this.locationCategory(location) === this.activeCategoryFilter);
+    }
+
+    renderCategoryChips(locations = this.currentLocations) {
+        if (!this.hasChipRowTarget) {
+            return;
+        }
+
+        const categoryKeys = this.availableCategoryKeys(locations);
+        if (!categoryKeys.includes(this.activeCategoryFilter)) {
+            this.activeCategoryFilter = 'all';
+        }
+
+        this.chipRowTarget.innerHTML = categoryKeys.map((categoryKey) => {
+            const label = categoryKey === 'all'
+                ? 'Todos'
+                : (this.categoryDefinitions[categoryKey]?.label ?? categoryKey);
+
+            return `
+                <button
+                    type="button"
+                    class="mobile-map-app__chip ${categoryKey === this.activeCategoryFilter ? 'is-active' : ''}"
+                    data-map-shell-target="categoryChip"
+                    data-category-filter="${this.escapeHtml(categoryKey)}"
+                    data-action="map-shell#applyCategoryFilter"
+                >
+                    ${this.escapeHtml(label)}
+                </button>
+            `;
+        }).join('');
+    }
+
+    availableCategoryKeys(locations) {
+        const discoveredCategories = new Set();
+
+        locations.forEach((location) => {
+            const category = this.locationCategory(location);
+            if (category !== 'all') {
+                discoveredCategories.add(category);
+            }
+        });
+
+        return ['all', ...Object.keys(this.categoryDefinitions).filter((key) => discoveredCategories.has(key))];
+    }
+
+    shouldFetchGooglePlaces() {
+        return this.hasUserCoordinates() && this.googleMapsApiKeyValue && this.googleMapsApiKeyValue.trim() !== '';
+    }
+
+    mergeLocationsWithGooglePlaces(canonicalLocations, googleLocations) {
+        if (!Array.isArray(canonicalLocations) || canonicalLocations.length === 0) {
+            return googleLocations;
+        }
+
+        const merged = [...canonicalLocations];
+
+        googleLocations.forEach((googleLocation) => {
+            const duplicate = canonicalLocations.some((canonicalLocation) => this.isSamePhysicalLocation(canonicalLocation, googleLocation));
+            if (!duplicate) {
+                merged.push(googleLocation);
+            }
+        });
+
+        return merged;
+    }
+
+    isSamePhysicalLocation(left, right) {
+        const leftLat = Number(left.lat);
+        const leftLng = Number(left.lng);
+        const rightLat = Number(right.lat);
+        const rightLng = Number(right.lng);
+
+        if (Number.isFinite(leftLat) && Number.isFinite(leftLng) && Number.isFinite(rightLat) && Number.isFinite(rightLng)) {
+            return this.distanceMeters(leftLat, leftLng, rightLat, rightLng) <= 60;
+        }
+
+        const leftName = this.normalizeComparisonText(left.location_name ?? left.merchant_name ?? '');
+        const rightName = this.normalizeComparisonText(right.location_name ?? right.merchant_name ?? '');
+        const leftAddress = this.normalizeComparisonText(left.short_address ?? '');
+        const rightAddress = this.normalizeComparisonText(right.short_address ?? '');
+
+        return leftName !== '' && leftName === rightName && leftAddress !== '' && leftAddress === rightAddress;
     }
 
     renderFallbackCanvas(locations) {
@@ -634,13 +758,12 @@ export default class extends Controller {
         });
     }
 
-    async renderGoogleMap(locations) {
+    async renderGoogleMap(locations, options = {}) {
         const google = await this.loadGoogleMaps();
         await this.afterLayoutSettles();
 
-        this.canvasTarget.innerHTML = '';
-
         if (!this.map) {
+            this.canvasTarget.innerHTML = '';
             this.map = new google.maps.Map(this.canvasTarget, {
                 center: { lat: 19.432608, lng: -99.133209 },
                 zoom: 12,
@@ -658,10 +781,12 @@ export default class extends Controller {
                 ],
             });
             this.infoWindow = new google.maps.InfoWindow();
+            this.initializeMapDiscoveryListener(google);
         }
 
         this.map.setMapTypeId(this.currentMapTypeId);
 
+        this.isSyncingMapViewport = true;
         this.markers.forEach((marker) => marker.setMap(null));
         this.markers = [];
         if (this.userMarker) {
@@ -689,6 +814,8 @@ export default class extends Controller {
                 });
                 this.map.setCenter(userPosition);
                 this.map.setZoom(14);
+                this.rememberCurrentMapCenter();
+                this.isSyncingMapViewport = false;
                 this.setCanvasNote(locations.length === 0
                     ? 'Ya ubicamos tu zona, pero todavía no hay locales visibles publicados.'
                     : 'Ubicamos tu zona, pero los locales visibles aún no traen coordenadas publicadas.');
@@ -697,6 +824,8 @@ export default class extends Controller {
 
             this.map.setCenter({ lat: 19.432608, lng: -99.133209 });
             this.map.setZoom(11);
+            this.rememberCurrentMapCenter();
+            this.isSyncingMapViewport = false;
             this.setCanvasNote(locations.length === 0
                 ? 'Todavía no hay locales visibles publicados en el feed.'
                 : 'El feed devolvió locales, pero todavía no tienen coordenadas válidas para dibujarse.');
@@ -714,9 +843,10 @@ export default class extends Controller {
                 animation: google.maps.Animation.DROP,
             });
 
-            marker.addListener('click', () => {
+            marker.addListener('click', async () => {
                 this.setSelectedLocation(this.locationKey(location));
-                this.openInfoWindow(location, marker);
+                const enrichedLocation = await this.enrichLocationIfNeeded(location);
+                this.openInfoWindow(enrichedLocation, marker);
             });
 
             this.markers.push(marker);
@@ -741,7 +871,9 @@ export default class extends Controller {
             bounds.extend(userPosition);
         }
 
-        if (hasUserCoordinates && validLocations.length > 0) {
+        if (options.preserveViewport) {
+            // Keep the user's current viewport while augmenting nearby discoveries.
+        } else if (hasUserCoordinates && validLocations.length > 0) {
             this.map.fitBounds(bounds, 60);
         } else if (hasUserCoordinates) {
             this.map.setCenter(this.currentUserPosition());
@@ -755,9 +887,11 @@ export default class extends Controller {
 
         this.googleMapsReady = true;
         this.refreshMapViewport();
-        this.setCanvasNote(this.currentFeedSource === 'places_fallback'
-            ? `${validLocations.length} lugares cercanos cargados desde Google Places.`
-            : `${validLocations.length} marcadores cargados en Google Maps.`);
+        this.rememberCurrentMapCenter();
+        window.setTimeout(() => {
+            this.isSyncingMapViewport = false;
+        }, 180);
+        this.setCanvasNote('');
     }
 
     focusMapLocation(location) {
@@ -772,9 +906,14 @@ export default class extends Controller {
             return;
         }
 
+        this.isSyncingMapViewport = true;
         this.map.panTo(marker.getPosition());
         this.map.setZoom(16);
         this.openInfoWindow(location, marker);
+        window.setTimeout(() => {
+            this.rememberCurrentMapCenter();
+            this.isSyncingMapViewport = false;
+        }, 180);
     }
 
     openInfoWindow(location, marker) {
@@ -788,6 +927,101 @@ export default class extends Controller {
             map: this.map,
         });
         this.setStatus(`Mostrando ${location.location_name ?? 'local seleccionado'} en el mapa.`);
+    }
+
+    initializeMapDiscoveryListener(google) {
+        if (!this.map) {
+            return;
+        }
+
+        google.maps.event.addListener(this.map, 'idle', () => {
+            if (this.mapIdleTimer) {
+                window.clearTimeout(this.mapIdleTimer);
+            }
+
+            this.mapIdleTimer = window.setTimeout(() => {
+                this.discoverPlacesFromViewport();
+            }, 420);
+        });
+    }
+
+    async discoverPlacesFromViewport() {
+        if (!this.map || this.isSyncingMapViewport || this.isDiscoveringPlaces || !this.shouldFetchGooglePlaces()) {
+            return;
+        }
+
+        const center = this.map.getCenter();
+        if (!center) {
+            return;
+        }
+
+        const centerPosition = {
+            lat: center.lat(),
+            lng: center.lng(),
+        };
+
+        if (this.lastDiscoveryCenter) {
+            const traveledMeters = this.distanceMeters(
+                this.lastDiscoveryCenter.lat,
+                this.lastDiscoveryCenter.lng,
+                centerPosition.lat,
+                centerPosition.lng,
+            );
+
+            if (traveledMeters < 320) {
+                return;
+            }
+        }
+
+        this.isDiscoveringPlaces = true;
+
+        try {
+            const googleLocations = await this.fetchNearbyPlacesFallback(centerPosition);
+            if (googleLocations.length === 0) {
+                this.lastDiscoveryCenter = centerPosition;
+                return;
+            }
+
+            const mergedLocations = this.mergeLocationsWithGooglePlaces(this.currentLocations, googleLocations);
+            if (mergedLocations.length === this.currentLocations.length) {
+                this.lastDiscoveryCenter = centerPosition;
+                return;
+            }
+
+            this.currentLocations = mergedLocations;
+            this.currentFeedSource = mergedLocations.some((location) => location.source_type !== 'google_places')
+                ? 'hybrid'
+                : 'places_fallback';
+            this.renderCategoryChips(mergedLocations);
+            this.visibleLocations = this.filteredLocations(mergedLocations);
+            this.countTarget.textContent = String(this.visibleLocations.length);
+            this.renderList(this.visibleLocations);
+            await this.renderCanvas(this.visibleLocations, { preserveViewport: true });
+            this.syncFavoriteButtons();
+            this.syncActiveCard();
+            this.lastDiscoveryCenter = centerPosition;
+            this.setStatus('Descubrimos más locales en esta zona del mapa.');
+        } catch (error) {
+            this.setStatus(`No pude descubrir más locales en esta zona: ${error.message}`);
+        } finally {
+            this.isDiscoveringPlaces = false;
+        }
+    }
+
+    rememberCurrentMapCenter() {
+        if (!this.map) {
+            return;
+        }
+
+        const center = this.map.getCenter();
+        if (!center) {
+            return;
+        }
+
+        this.lastDiscoveryCenter = {
+            lat: center.lat(),
+            lng: center.lng(),
+        };
     }
 
     async loadGoogleMaps() {
@@ -961,14 +1195,7 @@ export default class extends Controller {
 
     async fetchPlaceDetails(placeId) {
         const google = await this.loadGoogleMaps();
-        if (!google.maps.places?.PlacesService) {
-            throw new Error('La librería de Places no está disponible. Activa Places API para usar sugerencias de dirección.');
-        }
-
-        const serviceNode = this.placeDetailsNode ?? document.createElement('div');
-        this.placeDetailsNode = serviceNode;
-        const service = this.placeDetailsService ?? new google.maps.places.PlacesService(serviceNode);
-        this.placeDetailsService = service;
+        const service = this.googlePlacesService(google);
 
         return new Promise((resolve, reject) => {
             service.getDetails({
@@ -990,7 +1217,80 @@ export default class extends Controller {
         });
     }
 
-    async fetchNearbyPlacesFallback() {
+    async fetchGooglePlaceEnrichment(placeId) {
+        const google = await this.loadGoogleMaps();
+        const service = this.googlePlacesService(google);
+
+        return new Promise((resolve, reject) => {
+            service.getDetails({
+                placeId,
+                fields: [
+                    'current_opening_hours',
+                    'formatted_address',
+                    'formatted_phone_number',
+                    'geometry.location',
+                    'name',
+                    'opening_hours',
+                    'photos',
+                    'rating',
+                    'reviews',
+                    'types',
+                    'user_ratings_total',
+                    'website',
+                ],
+                language: 'es',
+                region: 'MX',
+            }, (place, status) => {
+                if (status !== google.maps.places.PlacesServiceStatus.OK || !place) {
+                    reject(new Error(this.googlePlacesStatusMessage(status)));
+                    return;
+                }
+
+                const lat = place.geometry?.location?.lat?.();
+                const lng = place.geometry?.location?.lng?.();
+                const photoUrl = Array.isArray(place.photos) && place.photos[0]?.getUrl
+                    ? place.photos[0].getUrl({ maxWidth: 1400, maxHeight: 1000 })
+                    : null;
+
+                resolve({
+                    lat: Number.isFinite(lat) ? Number(lat) : null,
+                    lng: Number.isFinite(lng) ? Number(lng) : null,
+                    short_address: place.formatted_address ?? null,
+                    open_now: typeof place.current_opening_hours?.open_now === 'boolean'
+                        ? place.current_opening_hours.open_now
+                        : (typeof place.opening_hours?.open_now === 'boolean' ? place.opening_hours.open_now : null),
+                    opening_hours_text: Array.isArray(place.current_opening_hours?.weekday_text)
+                        ? place.current_opening_hours.weekday_text
+                        : (Array.isArray(place.opening_hours?.weekday_text) ? place.opening_hours.weekday_text : []),
+                    rating: typeof place.rating === 'number' ? place.rating : null,
+                    user_ratings_total: typeof place.user_ratings_total === 'number' ? place.user_ratings_total : null,
+                    photo_url: photoUrl,
+                    types: Array.isArray(place.types) ? place.types : [],
+                    google_reviews: Array.isArray(place.reviews) ? place.reviews.slice(0, 3).map((review) => ({
+                        author_name: review.author_name ?? 'Google',
+                        rating: typeof review.rating === 'number' ? review.rating : null,
+                        text: review.text ?? '',
+                    })) : [],
+                    google_phone_number: place.formatted_phone_number ?? null,
+                    google_website: place.website ?? null,
+                });
+            });
+        });
+    }
+
+    googlePlacesService(google = window.google) {
+        if (!google?.maps?.places?.PlacesService) {
+            throw new Error('La librería de Places no está disponible. Activa Places API para usar sugerencias de dirección.');
+        }
+
+        const serviceNode = this.placeDetailsNode ?? document.createElement('div');
+        this.placeDetailsNode = serviceNode;
+        const service = this.placeDetailsService ?? new google.maps.places.PlacesService(serviceNode);
+        this.placeDetailsService = service;
+        return service;
+    }
+
+    async fetchNearbyPlacesFallback(searchCenter = null) {
         const google = await this.loadGoogleMaps();
         if (!google.maps.places?.PlacesService || !this.hasUserCoordinates()) {
             return [];
@@ -1001,10 +1301,13 @@ export default class extends Controller {
         const service = this.nearbyPlacesService ?? new google.maps.places.PlacesService(serviceNode);
         this.nearbyPlacesService = service;
         const userPosition = this.currentUserPosition();
+        const center = searchCenter && Number.isFinite(searchCenter.lat) && Number.isFinite(searchCenter.lng)
+            ? searchCenter
+            : userPosition;
 
         return new Promise((resolve, reject) => {
             service.nearbySearch({
-                location: userPosition,
+                location: center,
                 radius: 2200,
                 type: 'restaurant',
                 language: 'es',
@@ -1022,6 +1325,9 @@ export default class extends Controller {
                 resolve(results.slice(0, 10).map((place, index) => {
                     const lat = place.geometry?.location?.lat?.();
                     const lng = place.geometry?.location?.lng?.();
+                    const photoUrl = Array.isArray(place.photos) && place.photos[0]?.getUrl
+                        ? place.photos[0].getUrl({ maxWidth: 1200, maxHeight: 900 })
+                        : null;
 
                     return {
                         selection_key: `place:${place.place_id ?? index}`,
@@ -1039,6 +1345,11 @@ export default class extends Controller {
                         whatsapp_e164: null,
                         source_type: 'google_places',
                         publication_state: 'fallback_visible',
+                        open_now: place.opening_hours?.open_now ?? null,
+                        rating: typeof place.rating === 'number' ? place.rating : null,
+                        user_ratings_total: typeof place.user_ratings_total === 'number' ? place.user_ratings_total : null,
+                        types: Array.isArray(place.types) ? place.types : [],
+                        photo_url: photoUrl,
                     };
                 }).filter((place) => Number.isFinite(place.lat) && Number.isFinite(place.lng)));
             });
@@ -1140,7 +1451,7 @@ export default class extends Controller {
                 data-place-id="${this.escapeHtml(prediction.placeId)}"
             >
                 <span class="welcome-flow__suggestion-main">${this.escapeHtml(prediction.primaryText || prediction.description)}</span>
-                <span class="welcome-flow__suggestion-secondary">${this.escapeHtml(prediction.secondaryText || prediction.description)}</span>
+                <span class="welcome-flow__suggestion-secondary">${this.escapeHtml(prediction.secondaryText || '')}</span>
             </button>
         `).join('');
         this.walkthroughSuggestionsTarget.classList.remove('is-hidden');
@@ -1187,11 +1498,16 @@ export default class extends Controller {
         const locationName = this.escapeHtml(location.location_name ?? 'Local sin nombre');
         const merchantName = this.escapeHtml(location.merchant_name ?? 'Merchant');
         const address = this.escapeHtml(location.short_address ?? 'Dirección pendiente');
-        const statusLabel = this.escapeHtml(this.publicationStatusLabel(location.publication_state));
+        const statusLabel = this.escapeHtml(this.publicationStatusLabel(location));
+        const statusClass = this.infoWindowStatusClass(location);
         const distanceLabel = location.distance_meters != null ? this.escapeHtml(this.formatDistance(location.distance_meters)) : 'Zona cercana';
         const sourceLabel = this.escapeHtml(this.sourceTypeLabel(location.source_type));
         const directionsUrl = this.buildDirectionsUrl(location);
         const whatsappUrl = this.buildWhatsAppUrl(location.whatsapp_enabled, location.whatsapp_e164);
+        const reviewsLabel = this.escapeHtml(this.reviewsLabel(location));
+        const sourceBadgeClass = this.sourceBadgeClass(location);
+        const hoursSummary = this.openingHoursSummary(location);
+        const reviewSnippet = this.reviewSnippet(location);
 
         return `
             <article class="map-shell__info-window">
@@ -1200,13 +1516,18 @@ export default class extends Controller {
                         <strong>${locationName}</strong>
                         <p class="map-shell__info-window-merchant">${merchantName}</p>
                     </div>
-                    <span class="map-shell__info-window-badge">${statusLabel}</span>
+                    <div class="map-shell__info-window-badge-stack">
+                        <span class="map-shell__info-window-badge map-shell__info-window-badge--source ${sourceBadgeClass}">${sourceLabel}</span>
+                        <span class="map-shell__info-window-badge ${statusClass}">${statusLabel}</span>
+                    </div>
                 </header>
                 <p class="map-shell__info-window-address">${address}</p>
                 <div class="map-shell__info-window-meta">
                     <span>${distanceLabel}</span>
-                    <span>${sourceLabel}</span>
+                    <span>${reviewsLabel}</span>
                 </div>
+                ${hoursSummary ? `<p class="map-shell__info-window-detail">${this.escapeHtml(hoursSummary)}</p>` : ''}
+                ${reviewSnippet ? `<p class="map-shell__info-window-review">${this.escapeHtml(reviewSnippet)}</p>` : ''}
                 <div class="map-shell__info-window-actions">
                     ${directionsUrl ? `<a href="${this.escapeHtml(directionsUrl)}" target="_blank" rel="noreferrer">Cómo llegar</a>` : ''}
                     ${whatsappUrl ? `<a href="${this.escapeHtml(whatsappUrl)}" target="_blank" rel="noreferrer">WhatsApp</a>` : ''}
@@ -1215,31 +1536,110 @@ export default class extends Controller {
         `;
     }
 
-    publicationStatusLabel(publicationState) {
-        if (publicationState === 'public_visible') {
-            return 'Visible ahora';
+    publicationStatusLabel(location) {
+        if (location.source_type === 'google_places') {
+            if (this.locationIsOpen(location) === true) {
+                return 'Abierto';
+            }
+
+            if (this.locationIsOpen(location) === false) {
+                return 'Cerrado';
+            }
+
+            return 'Disponible';
         }
 
-        if (publicationState === 'fallback_visible') {
-            return 'Descubierto';
+        if (location.publication_state === 'public_visible') {
+            return 'Disponible';
+        }
+
+        if (location.publication_state === 'fallback_visible') {
+            return 'Disponible';
         }
 
         return 'Pendiente';
     }
 
+    publicationStatusClass(location) {
+        if (location.source_type === 'google_places') {
+            if (this.locationIsOpen(location) === false) {
+                return 'mobile-map-card__status--closed';
+            }
+
+            return 'mobile-map-card__status--discovered';
+        }
+
+        if (location.publication_state === 'public_visible') {
+            return ''; // Default green
+        }
+
+        if (location.publication_state === 'fallback_visible') {
+            return 'mobile-map-card__status--discovered';
+        }
+
+        // For 'pending_visible' or any other state
+        return 'mobile-map-card__status--pending';
+    }
+
     sourceTypeLabel(sourceType) {
         if (sourceType === 'owner_registered') {
-            return 'Registrado por dueño';
+            return 'Real';
+        }
+
+        if (sourceType === 'fake_seed') {
+            return 'Demo';
         }
 
         if (sourceType === 'google_places') {
-            return 'Descubierto en Google';
+            return 'Google';
         }
 
-        return 'Origen pendiente';
+        return 'Mi Monchis';
+    }
+
+    sourceBadgeClass(location) {
+        if (location.source_type === 'owner_registered') {
+            return 'source-badge--real';
+        }
+
+        if (location.source_type === 'fake_seed') {
+            return 'source-badge--demo';
+        }
+
+        if (location.source_type === 'google_places') {
+            return 'source-badge--google';
+        }
+
+        return 'source-badge--default';
+    }
+
+    infoWindowStatusClass(location) {
+        if (location.source_type === 'google_places' && this.locationIsOpen(location) === false) {
+            return 'map-shell__info-window-badge--closed';
+        }
+
+        return 'map-shell__info-window-badge--open';
     }
 
     locationCategory(location) {
+        const types = Array.isArray(location.types) ? location.types.map((type) => String(type).toLowerCase()) : [];
+
+        if (types.some((type) => ['meal_takeaway', 'mexican_restaurant', 'taco_restaurant'].includes(type))) {
+            return 'taqueria';
+        }
+
+        if (types.some((type) => ['vegetarian_restaurant', 'vegan_restaurant'].includes(type))) {
+            return 'vegetariano';
+        }
+
+        if (types.some((type) => ['cafe', 'bakery', 'coffee_shop'].includes(type))) {
+            return 'cafeteria';
+        }
+
+        if (types.some((type) => ['restaurant', 'food', 'meal_delivery'].includes(type))) {
+            return 'restaurante';
+        }
+
         const haystack = [
             location.location_name,
             location.merchant_name,
@@ -1313,6 +1713,41 @@ export default class extends Controller {
         if (this.hasNotificationsBadgeTarget) {
             this.notificationsBadgeTarget.textContent = '1';
             this.notificationsBadgeTarget.classList.toggle('is-hidden', this.notificationsOpen);
+        }
+    }
+
+    renderLocationSwitcherState() {
+        if (!this.hasLocationSwitcherTarget) {
+            return;
+        }
+
+        this.locationSwitcherTarget.classList.toggle('is-hidden', !this.locationSwitcherOpen);
+
+        if (this.locationSwitcherOpen) {
+            const savedAddressesMarkup = this.savedAddresses.length > 0
+                ? this.savedAddresses.map((address) => `
+                    <button
+                        type="button"
+                        class="mobile-map-app__location-item"
+                        data-action="click->map-shell#selectSavedAddress"
+                        data-lat="${this.escapeHtml(String(address.latitude))}"
+                        data-lng="${this.escapeHtml(String(address.longitude))}"
+                        data-label="${this.escapeHtml(address.label)}"
+                    >
+                        <strong>${this.escapeHtml(address.label)}</strong>
+                        <span>${this.escapeHtml(this.addressLine(address))}</span>
+                    </button>
+                `).join('')
+                : '<p class="mobile-map-app__location-item">No tienes ubicaciones guardadas.</p>';
+
+            // Aquí podrías añadir un enlace a un futuro flujo para agregar direcciones
+            const addAddressMarkup = `
+                <a href="#" class="mobile-map-app__location-item">
+                    <strong>Agregar nueva ubicación</strong>
+                </a>
+            `;
+
+            this.locationSwitcherTarget.innerHTML = savedAddressesMarkup + addAddressMarkup;
         }
     }
 
@@ -1488,16 +1923,23 @@ export default class extends Controller {
     }
 
     cardSubtitle(location) {
-        const pieces = [];
+        if (location.source_type === 'google_places') {
+            return location.short_address || 'Dirección pendiente';
+        }
+
+        if (location.merchant_name) {
+            if (location.short_address && location.short_address !== location.merchant_name) {
+                return `${location.merchant_name} • ${location.short_address}`;
+            }
+
+            return location.merchant_name;
+        }
 
         if (location.short_address) {
-            pieces.push(location.short_address);
-        }
-        if (location.merchant_name) {
-            pieces.push(location.merchant_name);
+            return location.short_address;
         }
 
-        return pieces.length > 0 ? pieces.join(' • ') : 'Direccion pendiente';
+        return 'Direccion pendiente';
     }
 
     formatDistance(distanceMeters) {
@@ -1522,6 +1964,113 @@ export default class extends Controller {
         return hash + 1;
     }
 
+    mediaStyle(location) {
+        if (!location.photo_url) {
+            return '';
+        }
+
+        return `style="background-image:url('${this.escapeHtml(location.photo_url)}')"`;
+    }
+
+    async enrichLocationIfNeeded(location) {
+        if (location.source_type !== 'google_places' || !location.place_id) {
+            return location;
+        }
+
+        const cachedDetails = this.placeDetailsCache.get(location.place_id);
+        if (cachedDetails) {
+            return this.applyLocationPatch(location, cachedDetails);
+        }
+
+        try {
+            const details = await this.fetchGooglePlaceEnrichment(location.place_id);
+            this.placeDetailsCache.set(location.place_id, details);
+            return this.applyLocationPatch(location, details, { rerenderVisible: true });
+        } catch (error) {
+            return location;
+        }
+    }
+
+    applyLocationPatch(location, patch, options = {}) {
+        const locationKey = this.locationKey(location);
+        const nextLocation = {
+            ...location,
+            ...patch,
+        };
+
+        if (Number.isFinite(nextLocation.lat) && Number.isFinite(nextLocation.lng) && this.hasUserCoordinates()) {
+            nextLocation.distance_meters = this.distanceMeters(
+                this.latValue,
+                this.lngValue,
+                Number(nextLocation.lat),
+                Number(nextLocation.lng),
+            );
+        }
+
+        this.currentLocations = this.currentLocations.map((candidate) => (
+            this.locationKey(candidate) === locationKey
+                ? { ...candidate, ...nextLocation }
+                : candidate
+        ));
+        this.visibleLocations = this.filteredLocations(this.currentLocations);
+
+        if (options.rerenderVisible) {
+            this.renderCategoryChips(this.currentLocations);
+            this.countTarget.textContent = String(this.visibleLocations.length);
+            this.renderList(this.visibleLocations);
+            this.syncFavoriteButtons();
+            this.syncActiveCard();
+        }
+
+        return nextLocation;
+    }
+
+    reviewsLabel(location) {
+        const rating = typeof location.rating === 'number' ? location.rating : null;
+        const total = Number.isInteger(location.user_ratings_total) ? location.user_ratings_total : null;
+
+        if (rating != null && total != null && total > 0) {
+            return `${rating.toFixed(1)} (${total})`;
+        }
+
+        if (rating != null) {
+            return `${rating.toFixed(1)} estrellas`;
+        }
+
+        return 'Sin reseñas';
+    }
+
+    locationIsOpen(location) {
+        if (typeof location.open_now === 'boolean') {
+            return location.open_now;
+        }
+
+        return null;
+    }
+
+    openingHoursSummary(location) {
+        if (!Array.isArray(location.opening_hours_text) || location.opening_hours_text.length === 0) {
+            return '';
+        }
+
+        return location.opening_hours_text[0] ?? '';
+    }
+
+    reviewSnippet(location) {
+        if (!Array.isArray(location.google_reviews) || location.google_reviews.length === 0) {
+            return '';
+        }
+
+        const firstReview = location.google_reviews.find((review) => review.text && review.text.trim() !== '');
+        if (!firstReview) {
+            return '';
+        }
+
+        const author = firstReview.author_name ? `${firstReview.author_name}: ` : '';
+        const snippet = firstReview.text.trim();
+        return `${author}${snippet.length > 110 ? `${snippet.slice(0, 107)}...` : snippet}`;
+    }
+
     escapeHtml(value) {
         return String(value)
             .replaceAll('&', '&amp;')
@@ -1529,6 +2078,15 @@ export default class extends Controller {
             .replaceAll('>', '&gt;')
             .replaceAll('"', '&quot;')
             .replaceAll("'", '&#039;');
+    }
+
+    normalizeComparisonText(value) {
+        return String(value)
+            .normalize('NFD')
+            .replace(/[\u0300-\u036f]/g, '')
+            .toLowerCase()
+            .replace(/[^a-z0-9]+/g, ' ')
+            .trim();
     }
 
     async requestJson(url, options = {}) {

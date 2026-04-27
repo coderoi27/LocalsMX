@@ -11,7 +11,7 @@
             {% set hero_location_label = hero_location_label ~ ' · ' ~ [saved_addresses[0].city, saved_addresses[0].state]|filter(v => v is not empty)|join(', ') %}
         {% endif %}
     {% elseif query_lat is not empty and query_lng is not empty %}
-        {% set hero_location_label = 'Lat ' ~ query_lat ~ ', Lng ' ~ query_lng %}
+        {% set hero_location_label = 'Ubicación actual' %}
     {% endif %}
 
     <main class="mobile-map-app">
@@ -25,6 +25,7 @@
             class="mobile-map-app__shell"
             data-controller="map-shell"
             data-action="click@window->map-shell#closeNotificationsOnOutsideClick"
+            data-action="click@window->map-shell#closeLocationSwitcherOnOutsideClick"
             data-map-shell-feed-url-value="{{ path('public_api_map_feed') }}"
             data-map-shell-authenticated-value="{{ is_authenticated ? 'true' : 'false' }}"
             data-map-shell-favorites-url-value="{% if is_authenticated %}{{ path('public_api_favorites_collection') }}{% endif %}"
@@ -75,8 +76,14 @@
 
             <header class="mobile-map-app__header">
                 <div class="mobile-map-app__header-copy">
-                    <p class="mobile-map-app__brand">Mi ubi</p>
-                    <div class="mobile-map-app__location-row">
+                    <div class="mobile-map-app__brand">
+                        <img src="{{ logo_url }}" alt="Mi Monchis" class="mobile-map-app__brand-logo">
+                    </div>
+                    <div
+                        class="mobile-map-app__location-row"
+                        data-action="click->map-shell#toggleLocationSwitcher"
+                        data-map-shell-target="locationSwitcherButton"
+                    >
                         <span class="mobile-map-app__pin">
                             <svg viewBox="0 0 24 24" aria-hidden="true">
                                 <path d="M12 21s-6-5.3-6-11a6 6 0 1 1 12 0c0 5.7-6 11-6 11Zm0-8.2a2.8 2.8 0 1 0 0-5.6 2.8 2.8 0 0 0 0 5.6Z" />
@@ -85,6 +92,10 @@
                         <span data-map-shell-target="heroLocation">{{ hero_location_label }}</span>
                     </div>
                 </div>
+                <div class="mobile-map-app__location-switcher is-hidden" data-map-shell-target="locationSwitcher">
+                    {# El contenido se renderiza dinámicamente desde el controlador Stimulus #}
+                </div>
+
                 <div class="mobile-map-app__header-actions">
                     <button type="button" class="mobile-map-app__icon-button mobile-map-app__icon-button--notify" aria-label="Notificaciones" data-map-shell-target="notificationsButton" data-action="map-shell#toggleNotifications">
                         <span class="mobile-map-app__notify-badge" data-map-shell-target="notificationsBadge">1</span>
@@ -104,13 +115,6 @@
                 </div>
             </header>
 
-            <div class="mobile-map-app__chip-row">
-                <button type="button" class="mobile-map-app__chip is-active" data-map-shell-target="categoryChip" data-category-filter="all" data-action="map-shell#applyCategoryFilter">Todos</button>
-                <button type="button" class="mobile-map-app__chip" data-map-shell-target="categoryChip" data-category-filter="taqueria" data-action="map-shell#applyCategoryFilter">Tacos</button>
-                <button type="button" class="mobile-map-app__chip" data-map-shell-target="categoryChip" data-category-filter="vegetariano" data-action="map-shell#applyCategoryFilter">Veggie</button>
-                <button type="button" class="mobile-map-app__chip" data-map-shell-target="categoryChip" data-category-filter="cafeteria" data-action="map-shell#applyCategoryFilter">Café</button>
-            </div>
-
             <div class="mobile-map-app__map-stage">
                 <div class="map-shell__canvas" data-map-shell-target="canvas"></div>
 
@@ -123,14 +127,9 @@
                     Intentando cargar Google Maps...
                 </div>
 
+                <div class="mobile-map-app__chip-row mobile-map-app__chip-row--map" data-map-shell-target="chipRow"></div>
+
                 <div class="mobile-map-app__floating-controls">
-                    <button type="button" class="mobile-map-app__control-button" data-action="map-shell#toggleMapType" aria-label="Cambiar tipo de mapa">
-                        <svg viewBox="0 0 24 24" aria-hidden="true">
-                            <path d="M4 7.5 10 4l4 3.5L20 4v12.5L14 20l-4-3.5L4 20V7.5Z" />
-                            <path d="M10 4v12.5" />
-                            <path d="M14 7.5V20" />
-                        </svg>
-                    </button>
                     <div class="mobile-map-app__zoom-stack">
                         <button type="button" class="mobile-map-app__control-button" data-action="map-shell#zoomIn" aria-label="Acercar">+</button>
                         <button type="button" class="mobile-map-app__control-button" data-action="map-shell#zoomOut" aria-label="Alejar">-</button>
@@ -209,15 +208,13 @@
                         <path d="M4 10.5 12 4l8 6.5V20H4v-9.5Z" />
                         <path d="M9.5 20v-5.5h5V20" />
                     </svg>
-                    <span>Inicio</span>
+                    <span>Explorar</span>
                 </a>
-                <a href="{{ path('public_api_map_feed') }}" class="mobile-map-app__nav-item">
+                <a href="{% if is_authenticated %}{{ path('public_api_favorites_collection') }}{% else %}{{ path('public_login') }}{% endif %}" class="mobile-map-app__nav-item">
                     <svg viewBox="0 0 24 24" aria-hidden="true">
-                        <path d="M4 17a8 8 0 0 1 16 0" />
-                        <path d="M7 17a5 5 0 0 1 10 0" />
-                        <path d="M10 17a2 2 0 0 1 4 0" />
+                        <path d="M12 21s-7-4.4-9.2-8.5C.9 9.1 2.3 5 6.3 5c2.2 0 3.6 1.3 4.4 2.4C11.5 6.3 12.9 5 15.1 5c4 0 5.4 4.1 3.5 7.5C16.4 16.6 12 21 12 21Z" />
                     </svg>
-                    <span>Feed</span>
+                    <span>Favoritos</span>
                 </a>
                 <button type="button" class="mobile-map-app__nav-item mobile-map-app__nav-item--center" data-action="map-shell#detectLocation">
                     <span class="mobile-map-app__nav-core">
@@ -231,11 +228,11 @@
                         </svg>
                     </span>
                 </button>
-                <a href="{% if is_authenticated %}{{ path('public_api_favorites_collection') }}{% else %}{{ path('public_login') }}{% endif %}" class="mobile-map-app__nav-item">
+                <a href="#" class="mobile-map-app__nav-item">
                     <svg viewBox="0 0 24 24" aria-hidden="true">
-                        <path d="M12 21s-7-4.4-9.2-8.5C.9 9.1 2.3 5 6.3 5c2.2 0 3.6 1.3 4.4 2.4C11.5 6.3 12.9 5 15.1 5c4 0 5.4 4.1 3.5 7.5C16.4 16.6 12 21 12 21Z" />
+                        <path d="M5 21V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16l-7-3.5L5 21Z" />
                     </svg>
-                    <span>Favoritos</span>
+                    <span>Guardadas</span>
                 </a>
                 <a href="{% if is_authenticated %}{{ path('public_api_me') }}{% else %}{{ path('public_login') }}{% endif %}" class="mobile-map-app__nav-item">
                     <svg viewBox="0 0 24 24" aria-hidden="true">

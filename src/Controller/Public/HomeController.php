@@ -26,7 +26,9 @@ final class HomeController extends AbstractController
     ): Response
     {
         if ((bool) $parameterBag->get('app.alpha_invite_required') && $request->getSession()->get('alpha_access_granted') !== true) {
-            return $this->render('public/alpha_request.html.twig');
+            return $this->render('public/alpha_request.html.twig', [
+                'logo_url' => '/images/branding/logo-simple-vertical.png',
+            ]);
         }
 
         $lat = $request->query->get('lat');

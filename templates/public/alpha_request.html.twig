@@ -4,15 +4,18 @@
 
 {% block body %}
     <main class="alpha-gate">
-        {% for label, messages in app.flashes %}
-            {% for message in messages %}
-                <div class="alpha-gate__flash alpha-gate__flash--{{ label }}">{{ message }}</div>
-            {% endfor %}
-        {% endfor %}
-
         <section class="alpha-gate__card">
+            {% if logo_url is defined and logo_url %}
+                <img src="{{ asset(logo_url) }}" alt="Mi Monchis" class="alpha-gate__logo">
+            {% endif %}
             <p class="alpha-gate__eyebrow">Alpha exclusiva</p>
-            <h1 class="alpha-gate__title">Solicita tu acceso a Mi Monchis</h1>
+            <h1 class="alpha-gate__title">Bienvenido a la exploración de Mi Monchis</h1>
+            {% for label, messages in app.flashes %}
+                {% for message in messages %}
+                    <div class="alpha-gate__flash alpha-gate__flash--{{ label }}">{{ message }}</div>
+                {% endfor %}
+            {% endfor %}
+
             <p class="alpha-gate__copy">
                 Ingresa tu correo y te enviaremos un enlace privado con token temporal para explorar la demo.
             </p>
