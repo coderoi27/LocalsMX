@@ -94,10 +94,10 @@ final class AlphaInvitationRequestController extends AbstractController
             return $this->redirectToRoute('public_home');
         }
 
-        $this->addFlash('success', 'Te enviamos un enlace de acceso alpha a tu correo.');
+        $this->addFlash('success', 'Te enviamos un enlace de acceso alpha a tu correo o accede desde aquí.');
 
         if ($this->getParameter('kernel.environment') === 'dev') {
-            $this->addFlash('info', sprintf('Link de desarrollo: %s', $absoluteInvitationUrl));
+            $this->addFlash('alpha_access_url', $absoluteInvitationUrl);
         }
 
         return $this->redirectToRoute('public_home');

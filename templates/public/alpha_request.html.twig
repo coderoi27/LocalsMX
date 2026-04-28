@@ -10,11 +10,23 @@
             {% endif %}
             <p class="alpha-gate__eyebrow">Alpha exclusiva</p>
             <h1 class="alpha-gate__title">Bienvenido a la exploración de Mi Monchis</h1>
-            {% for label, messages in app.flashes %}
-                {% for message in messages %}
-                    <div class="alpha-gate__flash alpha-gate__flash--{{ label }}">{{ message }}</div>
-                {% endfor %}
+            {% set error_messages = app.flashes('error') %}
+            {% set success_messages = app.flashes('success') %}
+            {% set alpha_access_urls = app.flashes('alpha_access_url') %}
+
+            {% for message in error_messages %}
+                <div class="alpha-gate__flash alpha-gate__flash--error">{{ message }}</div>
             {% endfor %}
+
+            {% for message in success_messages %}
+                <div class="alpha-gate__flash alpha-gate__flash--success">{{ message }}</div>
+            {% endfor %}
+
+            {% if alpha_access_urls is not empty %}
+                <div class="alpha-gate__flash alpha-gate__flash--action">
+                    <a href="{{ alpha_access_urls|last }}" class="alpha-gate__dev-access-button">Acceder ahora a la demo</a>
+                </div>
+            {% endif %}
 
             <p class="alpha-gate__copy">
                 Ingresa tu correo y te enviaremos un enlace privado con token temporal para explorar la demo.

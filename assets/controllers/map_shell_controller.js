@@ -86,6 +86,8 @@ export default class extends Controller {
         this.lastDiscoveryCenter = null;
         this.isDiscoveringPlaces = false;
         this.isSyncingMapViewport = false;
+        this.currentLocationLabel = this.hasHeroLocationTarget ? this.heroLocationTarget.textContent.trim() : '';
+        this.restorePersistedLocationContext();
         this.renderFavoritesSummary();
         this.renderAddressesSummary();
         const walkthroughIsActive = this.initializeWalkthrough();
@@ -1411,7 +1413,7 @@ export default class extends Controller {
 
         this.latValue = Number(latitude);
         this.lngValue = Number(longitude);
-        this.persistCoordinates();
+        this.persistLocationContext();
     }
 
     setWalkthroughError(message) {
@@ -1469,6 +1471,11 @@ export default class extends Controller {
     updateHeroLocation(label) {
         if (this.hasHeroLocationTarget && label) {
             this.heroLocationTarget.textContent = label;
+        }
+
+        if (label) {
+            this.currentLocationLabel = label;
+            this.persistLocationContext();
         }
     }
 
@@ -1751,15 +1758,66 @@ export default class extends Controller {
         }
     }
 
-    persistCoordinates() {
-        if (!this.hasUserCoordinates() || !window.history?.replaceState) {
+    persistLocationContext() {
+        if (!this.hasUserCoordinates()) {
             return;
         }
 
-        const url = new URL(window.location.href);
-        url.searchParams.set('lat', this.latValue.toFixed(6));
-        url.searchParams.set('lng', this.lngValue.toFixed(6));
-        window.history.replaceState({}, '', url.toString());
+        const payload = {
+            lat: Number(this.latValue.toFixed(6)),
+            lng: Number(this.lngValue.toFixed(6)),
+            label: this.currentLocationLabel || 'Ubicación actual',
+            updated_at: new Date().toISOString(),
+        };
+
+        try {
+            window.localStorage.setItem('mi_monchis_location_context', JSON.stringify(payload));
+        } catch (error) {
+            // Ignore storage failures in demo mode.
+        }
+
+        if (window.history?.replaceState) {
+            const url = new URL(window.location.href);
+            url.searchParams.delete('lat');
+            url.searchParams.delete('lng');
+            window.history.replaceState({}, '', url.toString());
+        }
+    }
+
+    restorePersistedLocationContext() {
+        const hasServerCoordinates = this.hasUserCoordinates();
+        let persistedContext = null;
+
+        try {
+            persistedContext = JSON.parse(window.localStorage.getItem('mi_monchis_location_context') ?? 'null');
+        } catch (error) {
+            persistedContext = null;
+        }
+
+        if (
+            !hasServerCoordinates
+            && persistedContext
+            && Number.isFinite(Number(persistedContext.lat))
+            && Number.isFinite(Number(persistedContext.lng))
+        ) {
+            this.latValue = Number(persistedContext.lat);
+            this.lngValue = Number(persistedContext.lng);
+        }
+
+        if (persistedContext?.label) {
+            this.currentLocationLabel = String(persistedContext.label);
+            if (this.hasHeroLocationTarget) {
+                this.heroLocationTarget.textContent = this.currentLocationLabel;
+            }
+            return;
+        }
+
+        if (hasServerCoordinates) {
+            this.currentLocationLabel = 'Ubicación actual';
+            if (this.hasHeroLocationTarget) {
+                this.heroLocationTarget.textContent = this.currentLocationLabel;
+            }
+        }
     }
 
     async afterLayoutSettles() {
