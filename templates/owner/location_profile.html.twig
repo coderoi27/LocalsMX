@@ -1,0 +1,265 @@
+{% extends 'base.html.twig' %}
+
+{% block title %}Mi local | Locals{% endblock %}
+
+{% block body %}
+    {% embed 'owner/_shell.html.twig' with { owner_user: owner_user, active: 'location' } %}
+        {% block locals_title %}Mi local{% endblock %}
+
+        {% block locals_content %}
+            {% if locations is empty %}
+                <section class="locals-panel">
+                    <div>
+                        <p class="locals-eyebrow">Sin local asociado</p>
+                        <h3>Tu cuenta todavía no tiene acceso a un local canónico</h3>
+                        <p>Cuando un claim sea aprobado o una invitación sea aceptada, aparecerá aquí el local editable. La relación se guarda en `owner_user_location_access` contra `merchant_locations`.</p>
+                    </div>
+                </section>
+            {% else %}
+                <section class="locals-location-layout">
+                    <aside class="locals-location-list">
+                        <p class="locals-eyebrow">Locales asociados</p>
+                        {% for item in locations %}
+                            <a href="{{ path('locals_location_profile_edit', { coreLocationId: item.core_location_id }) }}" class="locals-location-link {{ location and item.core_location_id == location.core_location_id ? 'is-active' : '' }}">
+                                <strong>{{ item.name }}</strong>
+                                <span>{{ item.category_name|default('Sin categoría') }}</span>
+                            </a>
+                        {% endfor %}
+                    </aside>
+
+                    <section class="locals-location-editor">
+                        {% if location %}
+                            <div class="locals-profile-header">
+                                <div>
+                                    <p class="locals-eyebrow">Perfil público</p>
+                                    <h3>{{ location.name }}</h3>
+                                    <p>{{ [location.neighborhood, location.city, location.state]|filter(v => v is not empty)|join(', ')|default('Sin dirección principal capturada') }}</p>
+                                </div>
+                                <div class="locals-meta-row">
+                                    <span>{{ location.publication_state }}</span>
+                                    <span>{{ location.source_type }}</span>
+                                    <span>{{ location.access_role }}</span>
+                                </div>
+                            </div>
+
+                            {% if errors is not empty %}
+                                <div class="locals-flash locals-flash--error">
+                                    {% for error in errors %}
+                                        <div>{{ error }}</div>
+                                    {% endfor %}
+                                </div>
+                            {% endif %}
+
+                            <form method="post" action="{{ path('locals_location_profile_edit', { coreLocationId: location.core_location_id }) }}" class="locals-edit-form" enctype="multipart/form-data">
+                                <input type="hidden" name="_token" value="{{ csrf_token('locals_location_profile_' ~ location.core_location_id) }}">
+
+                                <div class="locals-form-section">
+                                    <p class="locals-eyebrow">Identidad</p>
+                                    <h4>Datos visibles del local</h4>
+                                </div>
+
+                                <div class="locals-field">
+                                    <label for="name">Nombre público</label>
+                                    <input id="name" name="name" value="{{ form.name }}" maxlength="160" required {{ location.can_edit_profile ? '' : 'disabled' }}>
+                                </div>
+
+                                <div class="locals-field">
+                                    <label for="phone_e164">Teléfono</label>
+                                    <input id="phone_e164" name="phone_e164" value="{{ form.phone_e164 }}" maxlength="32" placeholder="+525500000000" {{ location.can_edit_profile ? '' : 'disabled' }}>
+                                </div>
+
+                                <div class="locals-field">
+                                    <label for="whatsapp_e164">WhatsApp</label>
+                                    <input id="whatsapp_e164" name="whatsapp_e164" value="{{ form.whatsapp_e164 }}" maxlength="32" placeholder="+525500000000" {{ location.can_edit_profile ? '' : 'disabled' }}>
+                                </div>
+
+                                <label class="locals-check">
+                                    <input type="checkbox" name="whatsapp_enabled" value="1" {{ form.whatsapp_enabled ? 'checked' : '' }} {{ location.can_edit_profile ? '' : 'disabled' }}>
+                                    <span>Mostrar WhatsApp como canal de contacto</span>
+                                </label>
+
+                                <div class="locals-field locals-field--full">
+                                    <label for="short_description">Descripción corta</label>
+                                    <textarea id="short_description" name="short_description" maxlength="500" rows="5" {{ location.can_edit_profile ? '' : 'disabled' }}>{{ form.short_description }}</textarea>
+                                </div>
+
+                                <div class="locals-form-section">
+                                    <p class="locals-eyebrow">Operación</p>
+                                    <h4>Servicios y atención</h4>
+                                </div>
+
+                                <fieldset class="locals-fieldset">
+                                    <legend>Servicios</legend>
+                                    <label class="locals-check">
+                                        <input type="checkbox" name="offers_delivery" value="1" {{ form.offers_delivery ? 'checked' : '' }} {{ location.can_edit_profile ? '' : 'disabled' }}>
+                                        <span>Servicio a domicilio</span>
+                                    </label>
+                                    <label class="locals-check">
+                                        <input type="checkbox" name="offers_takeaway" value="1" {{ form.offers_takeaway ? 'checked' : '' }} {{ location.can_edit_profile ? '' : 'disabled' }}>
+                                        <span>Para llevar</span>
+                                    </label>
+                                    <label class="locals-check">
+                                        <input type="checkbox" name="offers_dine_in" value="1" {{ form.offers_dine_in ? 'checked' : '' }} {{ location.can_edit_profile ? '' : 'disabled' }}>
+                                        <span>Comer en el lugar</span>
+                                    </label>
+                                </fieldset>
+
+                                <div class="locals-field">
+                                    <label for="delivery_notes">Notas de delivery</label>
+                                    <textarea id="delivery_notes" name="delivery_notes" rows="4" {{ location.can_edit_profile ? '' : 'disabled' }}>{{ form.delivery_notes }}</textarea>
+                                </div>
+
+                                <div class="locals-field">
+                                    <label for="service_notes">Notas operativas</label>
+                                    <textarea id="service_notes" name="service_notes" rows="4" {{ location.can_edit_profile ? '' : 'disabled' }}>{{ form.service_notes }}</textarea>
+                                </div>
+
+                                <div class="locals-form-section">
+                                    <p class="locals-eyebrow">Disponibilidad</p>
+                                    <h4>Horarios</h4>
+                                </div>
+
+                                <fieldset class="locals-fieldset locals-fieldset--stacked">
+                                    <legend>Horario semanal</legend>
+                                    {% for day, label in {1: 'Lunes', 2: 'Martes', 3: 'Miércoles', 4: 'Jueves', 5: 'Viernes', 6: 'Sábado', 7: 'Domingo'} %}
+                                        {% set day_hours = form.opening_hours[day] %}
+                                        <div class="locals-hours-row">
+                                            <strong>{{ label }}</strong>
+                                            <label>
+                                                <span>Abre</span>
+                                                <input type="time" name="opening_opens_{{ day }}" value="{{ day_hours.opens_at }}" {{ location.can_edit_profile ? '' : 'disabled' }}>
+                                            </label>
+                                            <label>
+                                                <span>Cierra</span>
+                                                <input type="time" name="opening_closes_{{ day }}" value="{{ day_hours.closes_at }}" {{ location.can_edit_profile ? '' : 'disabled' }}>
+                                            </label>
+                                            <label class="locals-check">
+                                                <input type="checkbox" name="opening_closed_{{ day }}" value="1" {{ day_hours.is_closed ? 'checked' : '' }} {{ location.can_edit_profile ? '' : 'disabled' }}>
+                                                <span>Cerrado</span>
+                                            </label>
+                                        </div>
+                                    {% endfor %}
+                                </fieldset>
+
+                                <fieldset class="locals-fieldset locals-fieldset--stacked">
+                                    <legend>Excepciones de horario</legend>
+                                    <p class="locals-fieldset-help">Usa estas filas para cierres especiales, días festivos o aperturas con horario distinto. Deja la fecha vacía para ignorar la fila.</p>
+                                    {% for exception in form.opening_exceptions %}
+                                        {% set index = loop.index0 %}
+                                        <div class="locals-exception-row">
+                                            <label>
+                                                <span>Fecha</span>
+                                                <input type="date" name="exception_date_{{ index }}" value="{{ exception.exception_date }}" {{ location.can_edit_profile ? '' : 'disabled' }}>
+                                            </label>
+                                            <label>
+                                                <span>Motivo</span>
+                                                <input type="text" name="exception_label_{{ index }}" value="{{ exception.label }}" placeholder="Día festivo, evento..." {{ location.can_edit_profile ? '' : 'disabled' }}>
+                                            </label>
+                                            <label>
+                                                <span>Abre</span>
+                                                <input type="time" name="exception_opens_{{ index }}" value="{{ exception.opens_at }}" {{ location.can_edit_profile ? '' : 'disabled' }}>
+                                            </label>
+                                            <label>
+                                                <span>Cierra</span>
+                                                <input type="time" name="exception_closes_{{ index }}" value="{{ exception.closes_at }}" {{ location.can_edit_profile ? '' : 'disabled' }}>
+                                            </label>
+                                            <label class="locals-check">
+                                                <input type="checkbox" name="exception_closed_{{ index }}" value="1" {{ exception.is_closed ? 'checked' : '' }} {{ location.can_edit_profile ? '' : 'disabled' }}>
+                                                <span>Cerrado</span>
+                                            </label>
+                                        </div>
+                                    {% endfor %}
+                                </fieldset>
+
+                                <div class="locals-form-section">
+                                    <p class="locals-eyebrow">Presentación</p>
+                                    <h4>Media y enlaces</h4>
+                                </div>
+
+                                <fieldset class="locals-fieldset locals-fieldset--stacked">
+                                    <legend>Media</legend>
+                                    <div class="locals-field">
+                                        <label for="primary_photo_url">Foto principal URL</label>
+                                        <input id="primary_photo_url" type="url" name="primary_photo_url" value="{{ form.primary_photo_url }}" placeholder="https://..." {{ location.can_edit_profile ? '' : 'disabled' }}>
+                                    </div>
+                                    <div class="locals-field">
+                                        <label for="primary_photo_file">Subir foto principal</label>
+                                        <input id="primary_photo_file" type="file" name="primary_photo_file" accept="image/jpeg,image/png,image/webp" {{ location.can_edit_profile ? '' : 'disabled' }}>
+                                    </div>
+                                    <div class="locals-field">
+                                        <label for="logo_url">Logo URL</label>
+                                        <input id="logo_url" type="url" name="logo_url" value="{{ form.logo_url }}" placeholder="https://..." {{ location.can_edit_profile ? '' : 'disabled' }}>
+                                    </div>
+                                    <div class="locals-field">
+                                        <label for="logo_file">Subir logo</label>
+                                        <input id="logo_file" type="file" name="logo_file" accept="image/jpeg,image/png,image/webp" {{ location.can_edit_profile ? '' : 'disabled' }}>
+                                    </div>
+                                    <div class="locals-field">
+                                        <label for="menu_image_url">Imagen de menú URL</label>
+                                        <input id="menu_image_url" type="url" name="menu_image_url" value="{{ form.menu_image_url }}" placeholder="https://..." {{ location.can_edit_profile ? '' : 'disabled' }}>
+                                    </div>
+                                    <div class="locals-field">
+                                        <label for="menu_image_file">Subir imagen de menú</label>
+                                        <input id="menu_image_file" type="file" name="menu_image_file" accept="image/jpeg,image/png,image/webp" {{ location.can_edit_profile ? '' : 'disabled' }}>
+                                    </div>
+                                </fieldset>
+
+                                <fieldset class="locals-fieldset locals-fieldset--stacked">
+                                    <legend>Redes y enlaces</legend>
+                                    <div class="locals-link-grid">
+                                        <div class="locals-field">
+                                            <label for="instagram_url">Instagram</label>
+                                            <input id="instagram_url" type="url" name="instagram_url" value="{{ form.instagram_url }}" placeholder="https://instagram.com/..." {{ location.can_edit_profile ? '' : 'disabled' }}>
+                                        </div>
+                                        <div class="locals-field">
+                                            <label for="facebook_url">Facebook</label>
+                                            <input id="facebook_url" type="url" name="facebook_url" value="{{ form.facebook_url }}" placeholder="https://facebook.com/..." {{ location.can_edit_profile ? '' : 'disabled' }}>
+                                        </div>
+                                        <div class="locals-field">
+                                            <label for="tiktok_url">TikTok</label>
+                                            <input id="tiktok_url" type="url" name="tiktok_url" value="{{ form.tiktok_url }}" placeholder="https://tiktok.com/..." {{ location.can_edit_profile ? '' : 'disabled' }}>
+                                        </div>
+                                        <div class="locals-field">
+                                            <label for="website_url">Sitio web</label>
+                                            <input id="website_url" type="url" name="website_url" value="{{ form.website_url }}" placeholder="https://..." {{ location.can_edit_profile ? '' : 'disabled' }}>
+                                        </div>
+                                        <div class="locals-field">
+                                            <label for="menu_url">Menú externo</label>
+                                            <input id="menu_url" type="url" name="menu_url" value="{{ form.menu_url }}" placeholder="https://..." {{ location.can_edit_profile ? '' : 'disabled' }}>
+                                        </div>
+                                    </div>
+                                </fieldset>
+
+                                <div class="locals-form-actions">
+                                    <button type="submit" {{ location.can_edit_profile ? '' : 'disabled' }}>Guardar cambios</button>
+                                    {% if not location.can_edit_profile %}
+                                        <p>Tu rol actual puede ver este local, pero no editar su perfil.</p>
+                                    {% endif %}
+                                </div>
+                            </form>
+                        {% endif %}
+                    </section>
+                </section>
+            {% endif %}
+
+            <section class="locals-form-grid">
+                <article class="locals-card">
+                    <span>Información pública</span>
+                    <p>Ya se puede editar nombre público, descripción corta, teléfono y WhatsApp cuando el permiso lo permite.</p>
+                </article>
+                <article class="locals-card">
+                    <span>Servicios</span>
+                    <p>Ya se pueden administrar delivery, para llevar, comer en sitio y notas operativas desde el perfil básico.</p>
+                </article>
+                <article class="locals-card">
+                    <span>Horarios propios</span>
+                    <p>Ya se puede administrar el horario semanal propio del local.</p>
+                </article>
+                <article class="locals-card">
+                    <span>Media y redes</span>
+                    <p>Ya se pueden administrar URLs de foto, logo, menú y redes principales.</p>
+                </article>
+            </section>
+        {% endblock %}
+    {% endembed %}
+{% endblock %}

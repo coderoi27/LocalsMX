@@ -1,0 +1,23 @@
+{% extends 'base.html.twig' %}
+
+{% block title %}Algo salió mal | Locals Mi Monchis MX{% endblock %}
+
+{% block body %}
+    <main class="locals-error-page">
+        <section class="locals-error-page__card">
+            <p class="locals-error-page__eyebrow">Locals Mi Monchis MX</p>
+            <h1>No pudimos completar esta acción</h1>
+            <p>
+                El panel para dueños tuvo un problema temporal. En producción ocultamos detalles técnicos;
+                reproduce el caso en local con `APP_DEBUG=1` o revisa logs del servidor.
+            </p>
+            <div class="locals-error-page__meta">
+                <span>Error {{ status_code|default(500) }}</span>
+                <span>{{ status_text|default('Error interno') }}</span>
+            </div>
+            <div class="locals-error-page__actions">
+                <a href="/">Volver al inicio</a>
+            </div>
+        </section>
+    </main>
+{% endblock %}

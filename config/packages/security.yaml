@@ -1,11 +1,11 @@
 security:
     password_hashers:
-        App\Entity\Public\PublicUser: 'auto'
+        App\Entity\OwnerUser: 'auto'
 
     providers:
-        public_users:
+        owner_users:
             entity:
-                class: App\Entity\Public\PublicUser
+                class: App\Entity\OwnerUser
                 property: email
 
     firewalls:
@@ -15,31 +15,27 @@ security:
 
         main:
             lazy: true
-            provider: public_users
-            user_checker: App\Security\PublicUserChecker
+            provider: owner_users
             form_login:
-                login_path: public_login
-                check_path: public_login
+                login_path: locals_login
+                check_path: locals_login
                 enable_csrf: true
-                default_target_path: public_home
+                default_target_path: locals_dashboard
             logout:
-                path: _security_logout
-                target: public_login
+                path: locals_logout
+                target: locals_login
+            custom_authenticator: App\Security\GoogleAuthenticator
 
     access_control:
-        - { path: ^/alpha/access$, roles: PUBLIC_ACCESS }
-        - { path: ^/$, roles: PUBLIC_ACCESS }
+        - { path: ^/connect/google, roles: PUBLIC_ACCESS }
         - { path: ^/login$, roles: PUBLIC_ACCESS }
         - { path: ^/register$, roles: PUBLIC_ACCESS }
-        - { path: ^/verify-otp$, roles: PUBLIC_ACCESS }
-        - { path: ^/api/v1/me$, roles: ROLE_PUBLIC_USER }
-        - { path: ^/api/v1/me/favorites, roles: ROLE_PUBLIC_USER }
-        - { path: ^/api/v1/me/addresses, roles: ROLE_PUBLIC_USER }
+        - { path: ^/, roles: ROLE_OWNER_USER }
 
 when@test:
     security:
         password_hashers:
-            App\Entity\Public\PublicUser:
+            App\Entity\OwnerUser:
                 algorithm: auto
                 cost: 4
                 time_cost: 3

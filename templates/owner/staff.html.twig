@@ -1,0 +1,71 @@
+{% extends 'base.html.twig' %}
+
+{% block title %}Staff | Locals{% endblock %}
+
+{% block body %}
+    {% embed 'owner/_shell.html.twig' with { owner_user: owner_user, active: 'staff' } %}
+        {% block locals_title %}Staff{% endblock %}
+
+        {% block locals_content %}
+            <section class="locals-panel locals-panel--split">
+                <div>
+                    <p class="locals-eyebrow">Equipo del local</p>
+                    <h3>Crear acceso para staff</h3>
+                    <p>Este acceso queda en Locals. La asignación por local específico se cerrará al conectar `owner_user_location_access` con Core.</p>
+                </div>
+                <form method="post" class="locals-inline-form">
+                    <input type="text" name="full_name" required placeholder="Nombre">
+                    <input type="email" name="email" required placeholder="Correo">
+                    <select name="role_key" required>
+                        {% for value, label in roles %}
+                            <option value="{{ value }}">{{ label }}</option>
+                        {% endfor %}
+                    </select>
+                    <input type="password" name="password" required placeholder="Contraseña temporal">
+                    <button type="submit">Crear staff</button>
+                </form>
+            </section>
+
+            <section class="locals-table-card">
+                <table class="locals-table">
+                    <thead>
+                        <tr>
+                            <th>Usuario</th>
+                            <th>Rol</th>
+                            <th>Estatus</th>
+                            <th>Origen</th>
+                            <th>Acción</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for staff_user in staff_users %}
+                            <tr>
+                                <td>
+                                    <strong>{{ staff_user.fullName }}</strong>
+                                    <span>{{ staff_user.email }}</span>
+                                </td>
+                                <td>{{ staff_user.roleKey }}</td>
+                                <td>{{ staff_user.status }}</td>
+                                <td>{{ staff_user.registrationOrigin }}</td>
+                                <td>
+                                    {% if staff_user.id != owner_user.id %}
+                                        <form method="post" action="{{ path('locals_staff_status', { id: staff_user.id }) }}">
+                                            <input type="hidden" name="status" value="{{ staff_user.status == 'active' ? 'suspended' : 'active' }}">
+                                            <button type="submit" class="locals-table-action">{{ staff_user.status == 'active' ? 'Suspender' : 'Activar' }}</button>
+                                        </form>
+                                    {% else %}
+                                        <span class="locals-muted">Tu cuenta</span>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                        {% else %}
+                            <tr>
+                                <td colspan="5">Aún no hay usuarios de staff.</td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </section>
+        {% endblock %}
+    {% endembed %}
+{% endblock %}

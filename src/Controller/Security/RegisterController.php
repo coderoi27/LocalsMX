@@ -4,9 +4,7 @@ declare(strict_types=1);
 
 namespace App\Controller\Security;
 
-use App\Entity\Public\PublicUser;
-use App\Entity\Public\PublicUserOtp;
-use App\Service\Public\OtpCodeFactory;
+use App\Entity\OwnerUser;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\Request;
@@ -16,61 +14,50 @@ use Symfony\Component\Routing\Attribute\Route;
 
 final class RegisterController extends AbstractController
 {
-    #[Route('/register', name: 'public_register', methods: ['GET', 'POST'])]
+    #[Route('/register', name: 'locals_register', methods: ['GET', 'POST'])]
     public function __invoke(
         Request $request,
         EntityManagerInterface $entityManager,
         UserPasswordHasherInterface $passwordHasher,
-        OtpCodeFactory $otpCodeFactory,
     ): Response {
-        if ($request->isMethod('GET')) {
-            return $this->render('security/public_register.html.twig');
+        if ($this->getUser() !== null) {
+            return $this->redirectToRoute('locals_dashboard');
         }
 
-        $firstName = trim((string) $request->request->get('first_name'));
-        $lastName = trim((string) $request->request->get('last_name'));
+        if ($request->isMethod('GET')) {
+            return $this->render('security/register.html.twig');
+        }
+
+        $fullName = trim((string) $request->request->get('full_name'));
         $email = trim((string) $request->request->get('email'));
         $password = (string) $request->request->get('password');
-        $registrationOrigin = (string) ($request->request->get('registration_origin') ?: 'organic');
 
-        if ($firstName === '' || $lastName === '' || $email === '' || $password === '') {
-            return $this->render('security/public_register.html.twig', [
-                'error' => 'Todos los campos son obligatorios.',
+        if ($fullName === '' || $email === '' || $password === '') {
+            return $this->render('security/register.html.twig', [
+                'error' => 'Nombre, correo y contraseña son obligatorios.',
             ], new Response('', 422));
         }
 
-        $existing = $entityManager->getRepository(PublicUser::class)->findOneBy(['email' => mb_strtolower($email)]);
-        if ($existing instanceof PublicUser) {
-            return $this->render('security/public_register.html.twig', [
-                'error' => 'Ese correo ya esta registrado.',
+        if ($entityManager->getRepository(OwnerUser::class)->findOneBy(['email' => mb_strtolower($email)]) instanceof OwnerUser) {
+            return $this->render('security/register.html.twig', [
+                'error' => 'Ese correo ya tiene acceso al panel de locales.',
             ], new Response('', 409));
         }
 
-        $user = (new PublicUser())
-            ->setFirstName($firstName)
-            ->setLastName($lastName)
+        $ownerUser = (new OwnerUser())
+            ->setFullName($fullName)
             ->setEmail($email)
-            ->setRegistrationOrigin($registrationOrigin)
-            ->setStatus('pending_verification');
+            ->setRoleKey(OwnerUser::ROLE_OWNER)
+            ->setStatus(OwnerUser::STATUS_ACTIVE)
+            ->setRegistrationOrigin('organic');
 
-        $user->setPasswordHash($passwordHasher->hashPassword($user, $password));
+        $ownerUser->setPasswordHash($passwordHasher->hashPassword($ownerUser, $password));
 
-        $code = $otpCodeFactory->createCode();
-        $otp = (new PublicUserOtp())
-            ->setPublicUser($user)
-            ->setTargetEmail($email)
-            ->setPurpose('register_verify')
-            ->setOtpHash($otpCodeFactory->hash($code))
-            ->setExpiresAt(new \DateTimeImmutable('+10 minutes'))
-            ->setCreatedAt(new \DateTimeImmutable());
-
-        $entityManager->persist($user);
-        $entityManager->persist($otp);
+        $entityManager->persist($ownerUser);
         $entityManager->flush();
 
-        return $this->render('security/public_verify_otp.html.twig', [
-            'email' => mb_strtolower($email),
-            'dev_otp_code' => $this->getParameter('kernel.environment') === 'dev' ? $code : null,
-        ]);
+        $this->addFlash('success', 'Cuenta creada. Ingresa para comenzar a configurar tu local.');
+
+        return $this->redirectToRoute('locals_login');
     }
 }

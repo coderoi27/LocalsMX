@@ -11,16 +11,22 @@ use Symfony\Component\Security\Http\Authentication\AuthenticationUtils;
 
 final class LoginController extends AbstractController
 {
-    #[Route('/login', name: 'public_login', methods: ['GET', 'POST'])]
+    #[Route('/login', name: 'locals_login', methods: ['GET', 'POST'])]
     public function __invoke(AuthenticationUtils $authenticationUtils): Response
     {
         if ($this->getUser() !== null) {
-            return $this->redirectToRoute('public_home');
+            return $this->redirectToRoute('locals_dashboard');
         }
 
-        return $this->render('security/public_login.html.twig', [
+        return $this->render('security/login.html.twig', [
             'last_username' => $authenticationUtils->getLastUsername(),
             'error' => $authenticationUtils->getLastAuthenticationError(),
         ]);
+    }
+
+    #[Route('/logout', name: 'locals_logout', methods: ['POST'])]
+    public function logout(): void
+    {
+        throw new \LogicException('This method is intercepted by the security firewall.');
     }
 }

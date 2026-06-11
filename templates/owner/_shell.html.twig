@@ -1,0 +1,51 @@
+{% set active = active|default('dashboard') %}
+
+<div class="locals-shell">
+    <aside class="locals-sidebar">
+        <div class="locals-brand">
+            <div class="locals-brand__mark">MM</div>
+            <div>
+                <p class="locals-eyebrow">Locals</p>
+                <h1>Mi Monchis MX</h1>
+            </div>
+        </div>
+
+        <nav class="locals-nav" aria-label="Navegación de Locals">
+            <a href="{{ path('locals_dashboard') }}" class="{{ active == 'dashboard' ? 'is-active' : '' }}"><span>01</span>Resumen</a>
+            <a href="{{ path('locals_location_profile') }}" class="{{ active == 'location' ? 'is-active' : '' }}"><span>02</span>Mi local</a>
+            <a href="{{ path('locals_staff_index') }}" class="{{ active == 'staff' ? 'is-active' : '' }}"><span>03</span>Staff</a>
+        </nav>
+
+        <div class="locals-sidebar-card">
+            <span>Cuenta</span>
+            <strong>{{ owner_user.fullName }}</strong>
+            <p>{{ owner_user.roleKey }}</p>
+        </div>
+
+        <form method="post" action="{{ path('locals_logout') }}" class="locals-logout-form">
+            <button type="submit" class="locals-logout">Salir</button>
+        </form>
+    </aside>
+
+    <main class="locals-main">
+        <header class="locals-topbar">
+            <div>
+                <p class="locals-eyebrow">Panel de dueño</p>
+                <h2>{% block locals_title %}Resumen{% endblock %}</h2>
+            </div>
+            <div class="locals-user-pill">
+                <span>Sesión activa</span>
+                <strong>{{ owner_user.fullName }}</strong>
+            </div>
+        </header>
+
+        {% for message in app.flashes('success') %}
+            <div class="locals-flash locals-flash--success">{{ message }}</div>
+        {% endfor %}
+        {% for message in app.flashes('error') %}
+            <div class="locals-flash locals-flash--error">{{ message }}</div>
+        {% endfor %}
+
+        {% block locals_content %}{% endblock %}
+    </main>
+</div>
