@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Command;
 
+use App\Entity\OwnerUser;
+use App\Entity\OwnerUserLocationAccess;
 use Doctrine\DBAL\Connection;
 use Doctrine\DBAL\ParameterType;
 use Symfony\Component\Console\Attribute\AsCommand;
@@ -33,7 +35,7 @@ final class SyncApprovedClaimsAccessCommand extends Command
     protected function configure(): void
     {
         $this
-            ->addOption('dry-run', null, InputOption::VALUE_NONE, 'Preview access grants without writing to the database.')
+            ->addOption('dry-run', null, InputOption::VALUE_NONE, 'Preview approved-claim access sync without writing to the database.')
             ->addOption('skip-local-db', null, InputOption::VALUE_NONE, 'Validate Core approved-claims endpoint without reading the Locals database.')
             ->addOption('email', null, InputOption::VALUE_REQUIRED, 'Limit sync to one owner email.');
     }
@@ -79,16 +81,20 @@ final class SyncApprovedClaimsAccessCommand extends Command
 
         try {
             $missingTables = $this->missingRequiredTables();
+            $missingSchema = $missingTables;
+            if ($missingTables === []) {
+                $missingSchema = $this->missingRequiredAccessColumns();
+            }
         } catch (\Throwable $exception) {
             $io->error(sprintf('Cannot connect to the Locals database: %s', $exception->getMessage()));
 
             return Command::FAILURE;
         }
 
-        if ($missingTables !== []) {
+        if ($missingSchema !== []) {
             $io->warning(sprintf(
                 'Cannot sync approved claims because the current Locals database does not contain: %s.',
-                implode(', ', $missingTables),
+                implode(', ', $missingSchema),
             ));
 
             return Command::FAILURE;
@@ -117,7 +123,7 @@ final class SyncApprovedClaimsAccessCommand extends Command
         );
 
         if ($dryRun) {
-            $io->success(sprintf('Dry-run completed. Would grant %d access row(s).', count($rows)));
+            $io->success(sprintf('Dry-run completed. Would apply %d approved-claim access sync row(s).', count($rows)));
 
             return Command::SUCCESS;
         }
@@ -132,33 +138,50 @@ final class SyncApprovedClaimsAccessCommand extends Command
                         role_key,
                         can_edit_profile,
                         can_manage_staff,
+                        source_type,
+                        source_claim_id,
+                        granted_at,
+                        updated_at,
                         created_at
                     ) VALUES (
                         :owner_user_id,
                         :core_location_id,
-                        'owner',
+                        :role_key,
                         1,
                         1,
+                        :source_type,
+                        :source_claim_id,
+                        :granted_at,
+                        :updated_at,
                         :created_at
                     )
                     ON DUPLICATE KEY UPDATE
-                        role_key = 'owner',
+                        role_key = :role_key,
                         can_edit_profile = 1,
-                        can_manage_staff = 1
+                        can_manage_staff = 1,
+                        source_type = :source_type,
+                        source_claim_id = :source_claim_id,
+                        updated_at = :updated_at
                     SQL,
                 [
                     'owner_user_id' => (int) $row['owner_user_id'],
                     'core_location_id' => (int) $row['core_location_id'],
+                    'role_key' => OwnerUserLocationAccess::ROLE_OWNER,
+                    'source_type' => OwnerUserLocationAccess::SOURCE_APPROVED_CLAIM,
+                    'source_claim_id' => (int) $row['claim_id'],
+                    'granted_at' => $now,
+                    'updated_at' => $now,
                     'created_at' => $now,
                 ],
                 [
                     'owner_user_id' => ParameterType::INTEGER,
                     'core_location_id' => ParameterType::INTEGER,
+                    'source_claim_id' => ParameterType::INTEGER,
                 ],
             );
         }
 
-        $io->success(sprintf('Granted %d Locals access row(s) from approved claims.', count($rows)));
+        $io->success(sprintf('Applied %d Locals access sync row(s) from approved claims.', count($rows)));
 
         return Command::SUCCESS;
     }
@@ -180,6 +203,23 @@ final class SyncApprovedClaimsAccessCommand extends Command
     }
 
     /**
+     * @return list<string>
+     */
+    private function missingRequiredAccessColumns(): array
+    {
+        $schemaManager = $this->connection->createSchemaManager();
+        $columns = array_change_key_case($schemaManager->listTableColumns('owner_user_location_access'), CASE_LOWER);
+        $missing = [];
+        foreach (['source_type', 'source_claim_id', 'granted_at', 'updated_at'] as $columnName) {
+            if (!isset($columns[$columnName])) {
+                $missing[] = sprintf('owner_user_location_access.%s', $columnName);
+            }
+        }
+
+        return $missing;
+    }
+
+    /**
      * @return list<array{owner_user_id:int, email:string, core_location_id:int, claim_id:int, location_name:string}>|null
      */
     private function pendingAccessRows(?string $email, SymfonyStyle $io): ?array
@@ -189,21 +229,45 @@ final class SyncApprovedClaimsAccessCommand extends Command
             return $approvedClaims;
         }
 
+        $approvedClaims = $this->claimsWithoutAmbiguousDuplicates($approvedClaims, $io);
         $rows = [];
+        $skippedMissingOwner = 0;
+        $skippedInactiveOwner = 0;
+        $skippedNonOwnerRole = 0;
+        $skippedAlreadySynced = 0;
+        $skippedConflictingClaim = 0;
+
         foreach ($approvedClaims as $claim) {
             $ownerUser = $this->connection->fetchAssociative(
-                'SELECT id, email FROM owner_users WHERE email = :email AND status = :status LIMIT 1',
-                [
-                    'email' => $claim['email'],
-                    'status' => 'active',
-                ],
+                'SELECT id, email, role_key, status FROM owner_users WHERE email = :email LIMIT 1',
+                ['email' => $claim['email']],
             );
             if (!is_array($ownerUser)) {
+                ++$skippedMissingOwner;
+
                 continue;
             }
 
-            $existingAccess = $this->connection->fetchOne(
-                'SELECT id FROM owner_user_location_access WHERE owner_user_id = :owner_user_id AND core_location_id = :core_location_id LIMIT 1',
+            if ((string) $ownerUser['status'] !== OwnerUser::STATUS_ACTIVE) {
+                ++$skippedInactiveOwner;
+
+                continue;
+            }
+
+            if ((string) $ownerUser['role_key'] !== OwnerUser::ROLE_OWNER) {
+                ++$skippedNonOwnerRole;
+
+                continue;
+            }
+
+            $existingAccess = $this->connection->fetchAssociative(
+                <<<'SQL'
+                    SELECT id, role_key, can_edit_profile, can_manage_staff, source_type, source_claim_id
+                    FROM owner_user_location_access
+                    WHERE owner_user_id = :owner_user_id
+                      AND core_location_id = :core_location_id
+                    LIMIT 1
+                    SQL,
                 [
                     'owner_user_id' => (int) $ownerUser['id'],
                     'core_location_id' => $claim['canonical_location_id'],
@@ -213,8 +277,25 @@ final class SyncApprovedClaimsAccessCommand extends Command
                     'core_location_id' => ParameterType::INTEGER,
                 ],
             );
-            if ($existingAccess !== false) {
-                continue;
+            if (is_array($existingAccess)) {
+                $existingSourceClaimId = $existingAccess['source_claim_id'] !== null ? (int) $existingAccess['source_claim_id'] : null;
+                if ($existingSourceClaimId !== null && $existingSourceClaimId !== (int) $claim['claim_id']) {
+                    ++$skippedConflictingClaim;
+
+                    continue;
+                }
+
+                if (
+                    (string) $existingAccess['source_type'] === OwnerUserLocationAccess::SOURCE_APPROVED_CLAIM
+                    && $existingSourceClaimId === (int) $claim['claim_id']
+                    && (string) $existingAccess['role_key'] === OwnerUserLocationAccess::ROLE_OWNER
+                    && (bool) $existingAccess['can_edit_profile'] === true
+                    && (bool) $existingAccess['can_manage_staff'] === true
+                ) {
+                    ++$skippedAlreadySynced;
+
+                    continue;
+                }
             }
 
             $rows[] = [
@@ -224,6 +305,19 @@ final class SyncApprovedClaimsAccessCommand extends Command
                 'claim_id' => $claim['claim_id'],
                 'location_name' => $claim['location_name'],
             ];
+        }
+
+        $skipped = [
+            'without active owner user' => $skippedMissingOwner,
+            'with inactive owner user' => $skippedInactiveOwner,
+            'with non-owner local user role' => $skippedNonOwnerRole,
+            'already synced' => $skippedAlreadySynced,
+            'conflicting existing source claim' => $skippedConflictingClaim,
+        ];
+        foreach ($skipped as $reason => $count) {
+            if ($count > 0) {
+                $io->note(sprintf('Skipped %d approved claim(s) %s.', $count, $reason));
+            }
         }
 
         return array_map(static fn (array $row): array => [
@@ -280,6 +374,11 @@ final class SyncApprovedClaimsAccessCommand extends Command
                 continue;
             }
 
+            $status = is_string($item['status'] ?? null) ? $item['status'] : (is_string($item['claim_status'] ?? null) ? $item['claim_status'] : 'approved');
+            if ($status !== 'approved') {
+                continue;
+            }
+
             $claimEmail = $this->normalizeEmail($item['email'] ?? null);
             $locationId = (int) ($item['canonical_location_id'] ?? 0);
             $claimId = (int) ($item['claim_id'] ?? 0);
@@ -296,6 +395,40 @@ final class SyncApprovedClaimsAccessCommand extends Command
         }
 
         return $claims;
+    }
+
+    /**
+     * @param list<array{claim_id:int, email:string, canonical_location_id:int, location_name:string}> $claims
+     * @return list<array{claim_id:int, email:string, canonical_location_id:int, location_name:string}>
+     */
+    private function claimsWithoutAmbiguousDuplicates(array $claims, SymfonyStyle $io): array
+    {
+        $byOwnerLocation = [];
+        foreach ($claims as $claim) {
+            $key = sprintf('%s#%d', $claim['email'], $claim['canonical_location_id']);
+            $byOwnerLocation[$key][] = $claim;
+        }
+
+        $deduped = [];
+        $ambiguousCount = 0;
+        foreach ($byOwnerLocation as $group) {
+            if (count($group) > 1) {
+                $ambiguousCount += count($group);
+
+                continue;
+            }
+
+            $deduped[] = $group[0];
+        }
+
+        if ($ambiguousCount > 0) {
+            $io->warning(sprintf(
+                'Skipped %d approved claim(s) because Core returned more than one claim for the same owner email and canonical location.',
+                $ambiguousCount,
+            ));
+        }
+
+        return $deduped;
     }
 
     private function normalizeEmail(mixed $email): ?string

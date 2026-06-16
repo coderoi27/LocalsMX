@@ -15,6 +15,11 @@ class OwnerUserLocationAccess
     public const ROLE_MANAGER = 'manager';
     public const ROLE_STAFF = 'staff';
 
+    public const SOURCE_MANUAL = 'manual';
+    public const SOURCE_APPROVED_CLAIM = 'approved_claim';
+    public const SOURCE_INVITATION = 'invitation';
+    public const SOURCE_ORGANIC = 'organic';
+
     #[ORM\Id]
     #[ORM\GeneratedValue]
     #[ORM\Column]
@@ -36,12 +41,27 @@ class OwnerUserLocationAccess
     #[ORM\Column]
     private bool $canManageStaff = false;
 
+    #[ORM\Column(length: 32)]
+    private string $sourceType = self::SOURCE_MANUAL;
+
+    #[ORM\Column(nullable: true)]
+    private ?int $sourceClaimId = null;
+
+    #[ORM\Column]
+    private \DateTimeImmutable $grantedAt;
+
     #[ORM\Column]
     private \DateTimeImmutable $createdAt;
 
+    #[ORM\Column]
+    private \DateTimeImmutable $updatedAt;
+
     public function __construct()
     {
-        $this->createdAt = new \DateTimeImmutable();
+        $now = new \DateTimeImmutable();
+        $this->grantedAt = $now;
+        $this->createdAt = $now;
+        $this->updatedAt = $now;
     }
 
     public function getId(): ?int
@@ -113,9 +133,61 @@ class OwnerUserLocationAccess
         return $this;
     }
 
+    public function getSourceType(): string
+    {
+        return $this->sourceType;
+    }
+
+    public function setSourceType(string $sourceType): self
+    {
+        if (!in_array($sourceType, self::sourceTypes(), true)) {
+            throw new \InvalidArgumentException(sprintf('Unsupported location access source "%s".', $sourceType));
+        }
+
+        $this->sourceType = $sourceType;
+
+        return $this;
+    }
+
+    public function getSourceClaimId(): ?int
+    {
+        return $this->sourceClaimId;
+    }
+
+    public function setSourceClaimId(?int $sourceClaimId): self
+    {
+        $this->sourceClaimId = $sourceClaimId;
+
+        return $this;
+    }
+
+    public function getGrantedAt(): \DateTimeImmutable
+    {
+        return $this->grantedAt;
+    }
+
+    public function setGrantedAt(\DateTimeImmutable $grantedAt): self
+    {
+        $this->grantedAt = $grantedAt;
+
+        return $this;
+    }
+
     public function getCreatedAt(): \DateTimeImmutable
     {
         return $this->createdAt;
+    }
+
+    public function getUpdatedAt(): \DateTimeImmutable
+    {
+        return $this->updatedAt;
+    }
+
+    public function touch(): self
+    {
+        $this->updatedAt = new \DateTimeImmutable();
+
+        return $this;
     }
 
     /**
@@ -124,5 +196,13 @@ class OwnerUserLocationAccess
     public static function roleKeys(): array
     {
         return [self::ROLE_OWNER, self::ROLE_MANAGER, self::ROLE_STAFF];
+    }
+
+    /**
+     * @return list<string>
+     */
+    public static function sourceTypes(): array
+    {
+        return [self::SOURCE_MANUAL, self::SOURCE_APPROVED_CLAIM, self::SOURCE_INVITATION, self::SOURCE_ORGANIC];
     }
 }

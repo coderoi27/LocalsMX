@@ -30,6 +30,9 @@ final readonly class CoreLocationGateway
                     access.role_key AS access_role,
                     access.can_edit_profile,
                     access.can_manage_staff,
+                    access.source_type AS access_source_type,
+                    access.source_claim_id AS access_source_claim_id,
+                    access.granted_at AS access_granted_at,
                     location.name,
                     location.slug,
                     location.status,
@@ -79,6 +82,9 @@ final readonly class CoreLocationGateway
                     access.role_key AS access_role,
                     access.can_edit_profile,
                     access.can_manage_staff,
+                    access.source_type AS access_source_type,
+                    access.source_claim_id AS access_source_claim_id,
+                    access.granted_at AS access_granted_at,
                     location.name,
                     location.slug,
                     location.location_type,
@@ -532,6 +538,7 @@ final readonly class CoreLocationGateway
         $row['core_location_id'] = (int) $row['core_location_id'];
         $row['can_edit_profile'] = (bool) $row['can_edit_profile'];
         $row['can_manage_staff'] = (bool) $row['can_manage_staff'];
+        $row['access_source_claim_id'] = $row['access_source_claim_id'] !== null ? (int) $row['access_source_claim_id'] : null;
         $row['whatsapp_enabled'] = (bool) ($row['whatsapp_enabled'] ?? false);
         $row['offers_delivery'] = (bool) ($row['offers_delivery'] ?? false);
         $row['offers_takeaway'] = (bool) ($row['offers_takeaway'] ?? false);
