@@ -12,109 +12,124 @@
             {% set completion_done = (has_locations ? 1 : 0) + (stats.access_count > 0 ? 1 : 0) + (stats.staff_count > 1 ? 1 : 0) %}
             {% set completion_percent = ((completion_done / completion_total) * 100)|round(0, 'floor') %}
 
-            <section class="locals-hero">
-                <div class="locals-hero__copy">
-                    <p class="locals-eyebrow">Mi Local</p>
-                    <h3>{{ stats.pending_core_connection ? 'Conecta tu presencia pública' : 'Tu local está listo para mantenerse al día' }}</h3>
-                    <p>{{ stats.pending_core_connection ? 'Cuando tu acceso quede asociado con Core podrás completar datos públicos, servicios, horarios, media y redes.' : 'Revisa la información visible, mantén horarios y servicios actualizados, y controla quién puede entrar al panel.' }}</p>
-                    <div class="locals-hero__actions">
-                        <a href="{{ path('locals_location_profile') }}" class="locals-action">Editar mi local</a>
-                        <a href="{{ path('locals_staff_index') }}" class="locals-action locals-action--secondary">Gestionar staff</a>
+            <div class="max-w-5xl mx-auto space-y-8">
+                
+                <!-- Hero Section -->
+                <section class="glass-card p-8 flex flex-col md:flex-row gap-8 items-center justify-between">
+                    <div class="flex-1">
+                        <p class="text-xs font-bold text-orange-600 uppercase tracking-wider mb-2">Mi Local</p>
+                        <h3 class="text-3xl font-extrabold text-gray-900 mb-3">{{ stats.pending_core_connection ? 'Conecta tu presencia pública' : 'Tu local está listo para mantenerse al día' }}</h3>
+                        <p class="text-lg text-gray-600 mb-6 max-w-xl">{{ stats.pending_core_connection ? 'Cuando tu acceso quede asociado con Core podrás completar datos públicos, servicios, horarios, media y redes.' : 'Revisa la información visible, mantén horarios y servicios actualizados, y controla quién puede entrar al panel.' }}</p>
+                        <div class="flex gap-4">
+                            <a href="{{ path('locals_location_profile') }}" class="glass-btn-primary">Editar mi local</a>
+                            <a href="{{ path('locals_staff_index') }}" class="glass-btn">Gestionar staff</a>
+                        </div>
                     </div>
-                </div>
-                <div class="locals-progress-card">
-                    <span>Preparación alpha</span>
-                    <strong>{{ completion_percent }}%</strong>
-                    <div class="locals-progress" aria-hidden="true">
-                        <span style="width: {{ completion_percent }}%"></span>
+                    <div class="w-full md:w-64 glass-panel p-6 rounded-3xl flex flex-col items-center justify-center text-center">
+                        <span class="text-sm font-bold text-gray-500 uppercase tracking-wider mb-2">Preparación alpha</span>
+                        <strong class="text-5xl font-black text-gray-900 mb-4">{{ completion_percent }}%</strong>
+                        <div class="w-full h-2 bg-gray-200/50 rounded-full overflow-hidden mb-3">
+                            <div class="h-full bg-gradient-to-r from-orange-400 to-red-500 rounded-full" style="width: {{ completion_percent }}%"></div>
+                        </div>
+                        <p class="text-sm text-gray-600 font-medium">{{ completion_done }} de {{ completion_total }} pasos completos</p>
                     </div>
-                    <p>{{ completion_done }} de {{ completion_total }} pasos base completos</p>
-                </div>
-            </section>
-
-            <section class="locals-grid locals-grid--stats">
-                <article class="locals-card">
-                    <span>Accesos del equipo</span>
-                    <strong>{{ stats.staff_count }}</strong>
-                    <p>Personas con cuenta en la consola del local.</p>
-                </article>
-                <article class="locals-card">
-                    <span>Locales asociados</span>
-                    <strong>{{ stats.access_count }}</strong>
-                    <p>Permisos conectados con ubicaciones canónicas.</p>
-                </article>
-                <article class="locals-card">
-                    <span>Estado operativo</span>
-                    <strong>{{ stats.pending_core_connection ? 'Pendiente' : 'Activo' }}</strong>
-                    <p>{{ stats.pending_core_connection ? 'Falta asociar tu cuenta con un local canónico.' : 'Tu cuenta ya tiene acceso asociado.' }}</p>
-                </article>
-            </section>
-
-            <section class="locals-task-panel">
-                <header>
-                    <p class="locals-eyebrow">Siguiente acción</p>
-                    <h3>{{ stats.pending_core_connection ? 'Esperar asociación del local' : 'Completar perfil visible' }}</h3>
-                </header>
-                <div class="locals-task-list">
-                    <a href="{{ path('locals_location_profile') }}" class="locals-task {{ has_locations ? 'is-done' : '' }}">
-                        <span></span>
-                        <div>
-                            <strong>Perfil público</strong>
-                            <p>{{ has_locations ? 'Disponible para edición según permiso.' : 'Aparecerá cuando exista un local asociado.' }}</p>
-                        </div>
-                    </a>
-                    <a href="{{ path('locals_location_profile') }}" class="locals-task {{ stats.access_count > 0 ? 'is-done' : '' }}">
-                        <span></span>
-                        <div>
-                            <strong>Permiso Core</strong>
-                            <p>{{ stats.access_count > 0 ? 'La cuenta ya tiene relación con ubicación.' : 'Pendiente de claim, invitación o sincronización.' }}</p>
-                        </div>
-                    </a>
-                    <a href="{{ path('locals_staff_index') }}" class="locals-task {{ stats.staff_count > 1 ? 'is-done' : '' }}">
-                        <span></span>
-                        <div>
-                            <strong>Equipo</strong>
-                            <p>{{ stats.staff_count > 1 ? 'Ya existe más de una cuenta registrada.' : 'Agrega staff cuando delegues operación.' }}</p>
-                        </div>
-                    </a>
-                </div>
-            </section>
-
-            {% if locations is not empty %}
-                <section class="locals-table-card">
-                    <table class="locals-table">
-                        <thead>
-                            <tr>
-                                <th>Local</th>
-                                <th>Categoría</th>
-                                <th>Zona</th>
-                                <th>Estado</th>
-                                <th>Permiso</th>
-                                <th></th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {% for location in locations %}
-                                <tr>
-                                    <td>
-                                        <strong>{{ location.name }}</strong><br>
-                                        <span>{{ location.slug }}</span>
-                                    </td>
-                                    <td>{{ location.category_name|default('Sin categoría') }}</td>
-                                    <td>{{ [location.neighborhood, location.city]|filter(v => v is not empty)|join(', ')|default('Sin zona') }}</td>
-                                    <td>
-                                        <span class="locals-status">{{ location.publication_state }}</span>
-                                    </td>
-                                    <td>{{ location.access_role }}</td>
-                                    <td>
-                                        <a class="locals-table-action" href="{{ path('locals_location_profile_edit', { coreLocationId: location.core_location_id }) }}">Editar</a>
-                                    </td>
-                                </tr>
-                            {% endfor %}
-                        </tbody>
-                    </table>
                 </section>
-            {% endif %}
+
+                <!-- Stats Grid -->
+                <section class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    <article class="glass-card p-6 flex flex-col justify-between">
+                        <span class="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Accesos del equipo</span>
+                        <strong class="text-4xl font-black text-gray-900 mb-2">{{ stats.staff_count }}</strong>
+                        <p class="text-sm text-gray-600">Personas con cuenta en la consola del local.</p>
+                    </article>
+                    <article class="glass-card p-6 flex flex-col justify-between">
+                        <span class="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Locales asociados</span>
+                        <strong class="text-4xl font-black text-gray-900 mb-2">{{ stats.access_count }}</strong>
+                        <p class="text-sm text-gray-600">Permisos conectados con ubicaciones canónicas.</p>
+                    </article>
+                    <article class="glass-card p-6 flex flex-col justify-between">
+                        <span class="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Estado operativo</span>
+                        <strong class="text-4xl font-black text-gray-900 mb-2">{{ stats.pending_core_connection ? 'Pendiente' : 'Activo' }}</strong>
+                        <p class="text-sm text-gray-600">{{ stats.pending_core_connection ? 'Falta asociar tu cuenta con un local canónico.' : 'Tu cuenta ya tiene acceso asociado.' }}</p>
+                    </article>
+                </section>
+
+                <!-- Tasks Section -->
+                <section class="glass-card p-8">
+                    <header class="mb-6">
+                        <p class="text-xs font-bold text-orange-600 uppercase tracking-wider mb-1">Siguiente acción</p>
+                        <h3 class="text-2xl font-bold text-gray-900">{{ stats.pending_core_connection ? 'Esperar asociación del local' : 'Completar perfil visible' }}</h3>
+                    </header>
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <a href="{{ path('locals_location_profile') }}" class="glass-panel p-5 rounded-2xl flex items-start gap-4 hover:bg-white/50 transition-colors {{ has_locations ? 'opacity-50' : '' }}">
+                            <div class="w-6 h-6 rounded-full border-2 flex-shrink-0 mt-1 {{ has_locations ? 'border-green-500 bg-green-500' : 'border-gray-300 bg-white/50' }}"></div>
+                            <div>
+                                <strong class="block text-lg font-bold text-gray-900 mb-1">Perfil público</strong>
+                                <p class="text-sm text-gray-600">{{ has_locations ? 'Disponible para edición.' : 'Aparecerá cuando exista un local asociado.' }}</p>
+                            </div>
+                        </a>
+                        <a href="{{ path('locals_location_profile') }}" class="glass-panel p-5 rounded-2xl flex items-start gap-4 hover:bg-white/50 transition-colors {{ stats.access_count > 0 ? 'opacity-50' : '' }}">
+                            <div class="w-6 h-6 rounded-full border-2 flex-shrink-0 mt-1 {{ stats.access_count > 0 ? 'border-green-500 bg-green-500' : 'border-gray-300 bg-white/50' }}"></div>
+                            <div>
+                                <strong class="block text-lg font-bold text-gray-900 mb-1">Permiso Core</strong>
+                                <p class="text-sm text-gray-600">{{ stats.access_count > 0 ? 'La cuenta ya tiene ubicación.' : 'Pendiente de sincronización.' }}</p>
+                            </div>
+                        </a>
+                        <a href="{{ path('locals_staff_index') }}" class="glass-panel p-5 rounded-2xl flex items-start gap-4 hover:bg-white/50 transition-colors {{ stats.staff_count > 1 ? 'opacity-50' : '' }}">
+                            <div class="w-6 h-6 rounded-full border-2 flex-shrink-0 mt-1 {{ stats.staff_count > 1 ? 'border-green-500 bg-green-500' : 'border-gray-300 bg-white/50' }}"></div>
+                            <div>
+                                <strong class="block text-lg font-bold text-gray-900 mb-1">Equipo</strong>
+                                <p class="text-sm text-gray-600">{{ stats.staff_count > 1 ? 'Ya existe más de una cuenta.' : 'Agrega staff para delegar.' }}</p>
+                            </div>
+                        </a>
+                    </div>
+                </section>
+
+                <!-- Mis Locales Table (if they have locations) -->
+                {% if has_locations %}
+                    <section class="glass-card overflow-hidden">
+                        <div class="p-6 border-b border-white/20">
+                            <h3 class="text-xl font-bold text-gray-900">Mis Locales</h3>
+                        </div>
+                        <div class="overflow-x-auto">
+                            <table class="w-full text-left border-collapse">
+                                <thead>
+                                    <tr class="bg-black/5 text-xs font-bold text-gray-500 uppercase tracking-wider">
+                                        <th class="px-6 py-4">Local</th>
+                                        <th class="px-6 py-4">Categoría</th>
+                                        <th class="px-6 py-4">Zona</th>
+                                        <th class="px-6 py-4">Estado</th>
+                                        <th class="px-6 py-4">Permiso</th>
+                                        <th class="px-6 py-4 text-right">Acciones</th>
+                                    </tr>
+                                </thead>
+                                <tbody class="divide-y divide-white/20">
+                                    {% for location in locations %}
+                                        <tr class="hover:bg-white/30 transition-colors">
+                                            <td class="px-6 py-4">
+                                                <strong class="block text-gray-900 font-bold">{{ location.name }}</strong>
+                                                <span class="text-sm text-gray-500">{{ location.whatsapp_e164 ?? 'Sin teléfono' }}</span>
+                                            </td>
+                                            <td class="px-6 py-4 text-sm font-medium text-gray-700">{{ location.category_name ?? '-' }}</td>
+                                            <td class="px-6 py-4 text-sm text-gray-600">{{ location.neighborhood ?? '-' }}, {{ location.city ?? '-' }}</td>
+                                            <td class="px-6 py-4">
+                                                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium {{ location.status == 'active' ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800' }}">
+                                                    {{ location.status }}
+                                                </span>
+                                            </td>
+                                            <td class="px-6 py-4 text-sm text-gray-600 font-medium">{{ location.access_role|capitalize }}</td>
+                                            <td class="px-6 py-4 text-right">
+                                                <a href="{{ path('locals_location_profile', {'id': location.core_location_id}) }}" class="glass-btn !py-1.5 !px-3 !text-sm">Administrar</a>
+                                            </td>
+                                        </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    </section>
+                {% endif %}
+
+            </div>
         {% endblock %}
     {% endembed %}
 {% endblock %}

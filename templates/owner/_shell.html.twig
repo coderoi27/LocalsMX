@@ -1,49 +1,47 @@
 {% set active = active|default('dashboard') %}
 
-<div class="locals-shell">
-    <aside class="locals-sidebar">
-        <div class="locals-brand">
-            <div class="locals-brand__mark">MM</div>
-            <div>
-                <p class="locals-eyebrow">Locals</p>
-                <h1>Mi Monchis MX</h1>
-            </div>
+<div class="flex flex-col min-h-screen pl-64">
+    <!-- Sidebar -->
+    <aside class="fixed top-0 left-0 h-screen w-64 glass-panel border-r border-white/40 z-20 flex flex-col">
+        <div class="h-16 flex items-center px-6 border-b border-white/20">
+            <span class="text-xl font-bold tracking-tight bg-gradient-to-r from-orange-500 to-red-500 bg-clip-text text-transparent">Mi Monchis</span>
+            <span class="ml-2 text-sm font-semibold text-gray-500 uppercase">Locals</span>
         </div>
-
-        <nav class="locals-nav" aria-label="Navegación de Locals">
-            <a href="{{ path('locals_dashboard') }}" class="{{ active == 'dashboard' ? 'is-active' : '' }}"><span>01</span>Resumen</a>
-            <a href="{{ path('locals_location_profile') }}" class="{{ active == 'location' ? 'is-active' : '' }}"><span>02</span>Mi local</a>
-            <a href="{{ path('locals_staff_index') }}" class="{{ active == 'staff' ? 'is-active' : '' }}"><span>03</span>Staff</a>
+        <nav class="flex-1 overflow-y-auto py-4 px-3 space-y-1">
+            <a href="{{ path('locals_dashboard') }}" class="block px-3 py-2.5 rounded-xl transition-colors font-medium {{ active == 'dashboard' ? 'bg-white/60 text-orange-600 shadow-sm' : 'hover:bg-white/50 text-gray-700' }}">Resumen</a>
+            <a href="{{ path('locals_location_profile') }}" class="block px-3 py-2.5 rounded-xl transition-colors font-medium {{ active == 'location' ? 'bg-white/60 text-orange-600 shadow-sm' : 'hover:bg-white/50 text-gray-700' }}">Mi local</a>
+            <a href="{{ path('locals_staff_index') }}" class="block px-3 py-2.5 rounded-xl transition-colors font-medium {{ active == 'staff' ? 'bg-white/60 text-orange-600 shadow-sm' : 'hover:bg-white/50 text-gray-700' }}">Staff</a>
         </nav>
-
-        <div class="locals-sidebar-card">
-            <span>Cuenta</span>
-            <strong>{{ owner_user.fullName }}</strong>
-            <p>{{ owner_user.roleKey }}</p>
+        
+        <div class="p-4 border-t border-white/20">
+            <div class="mb-4">
+                <p class="text-xs text-gray-500 font-bold uppercase tracking-wider mb-1">Cuenta activa</p>
+                <p class="font-bold text-gray-900 truncate">{{ owner_user.fullName }}</p>
+                <p class="text-xs text-gray-500">{{ owner_user.roleKey }}</p>
+            </div>
+            <form method="post" action="{{ path('locals_logout') }}">
+                <button type="submit" class="w-full glass-btn text-red-600 hover:text-red-700">Cerrar sesión</button>
+            </form>
         </div>
-
-        <form method="post" action="{{ path('locals_logout') }}" class="locals-logout-form">
-            <button type="submit" class="locals-logout">Salir</button>
-        </form>
     </aside>
 
-    <main class="locals-main">
-        <header class="locals-topbar">
-            <div>
-                <p class="locals-eyebrow">Panel de dueño</p>
-                <h2>{% block locals_title %}Resumen{% endblock %}</h2>
+    <!-- Main Content -->
+    <header class="h-16 glass-panel border-b border-white/40 sticky top-0 z-10 flex items-center px-8 justify-between">
+        <h2 class="text-xl font-bold text-gray-800 tracking-tight">{% block locals_title %}Resumen{% endblock %}</h2>
+        <div class="flex items-center gap-3">
+            <span class="text-sm font-medium text-gray-600">{{ owner_user.fullName }}</span>
+            <div class="h-8 w-8 rounded-full bg-gradient-to-tr from-orange-400 to-red-400 shadow-inner flex items-center justify-center text-white font-bold text-sm">
+                {{ owner_user.fullName|slice(0, 1) }}
             </div>
-            <div class="locals-user-pill">
-                <span>Sesión activa</span>
-                <strong>{{ owner_user.fullName }}</strong>
-            </div>
-        </header>
+        </div>
+    </header>
 
+    <main class="flex-1 p-8">
         {% for message in app.flashes('success') %}
-            <div class="locals-flash locals-flash--success">{{ message }}</div>
+            <div class="mb-6 p-4 rounded-xl bg-green-500/20 backdrop-blur-md border border-green-500/30 text-green-800 font-medium">{{ message }}</div>
         {% endfor %}
         {% for message in app.flashes('error') %}
-            <div class="locals-flash locals-flash--error">{{ message }}</div>
+            <div class="mb-6 p-4 rounded-xl bg-red-500/20 backdrop-blur-md border border-red-500/30 text-red-800 font-medium">{{ message }}</div>
         {% endfor %}
 
         {% block locals_content %}{% endblock %}

@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mi Monchis para Negocios</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        body { margin: 0; font-family: 'Inter', sans-serif; background-color: #f9fafb; color: #111827; }
+        .hero { background: #111827; color: white; padding: 4rem 2rem; text-align: center; }
+        .hero h1 { font-size: 3rem; margin-bottom: 1rem; font-weight: 800; }
+        .hero p { font-size: 1.25rem; color: #d1d5db; max-width: 600px; margin: 0 auto 2rem; line-height: 1.6; }
+        .buttons { display: flex; gap: 1rem; justify-content: center; flex-wrap: wrap; }
+        .btn-primary { background: #3b82f6; color: white; padding: 0.75rem 1.5rem; border-radius: 9999px; text-decoration: none; font-weight: 600; transition: background 0.2s; }
+        .btn-primary:hover { background: #2563eb; }
+        .btn-secondary { background: white; color: #111827; padding: 0.75rem 1.5rem; border-radius: 9999px; text-decoration: none; font-weight: 600; transition: background 0.2s; }
+        .btn-secondary:hover { background: #f3f4f6; }
+        
+        .benefits { padding: 4rem 2rem; max-width: 1000px; margin: 0 auto; display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 2rem; }
+        .card { background: white; padding: 2rem; border-radius: 1rem; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); }
+        .card h3 { margin-top: 0; font-size: 1.25rem; }
+        .card p { color: #4b5563; line-height: 1.5; margin-bottom: 0; }
+    </style>
+</head>
+<body>
+
+    <header class="hero">
+        <h1>Mi Monchis para Negocios</h1>
+        <p>Toma el control de tu presencia digital. Gestiona tu menú, horarios y conecta directo con tus clientes sin intermediarios ni comisiones ocultas.</p>
+        <div class="buttons">
+            <a href="#" class="btn-primary">Reclamar mi local</a>
+            <a href="/login" class="btn-secondary">Iniciar sesión</a>
+        </div>
+    </header>
+
+    <section class="benefits">
+        <div class="card">
+            <h3>👁️ Mayor visibilidad local</h3>
+            <p>Aparece en el mapa canónico y llega a comensales que buscan comida por tu zona de forma orgánica.</p>
+        </div>
+        <div class="card">
+            <h3>📱 Menú Lite y QR</h3>
+            <p>Genera un código QR directo a tu perfil para que tus clientes puedan consultar tu oferta rápidamente desde su teléfono.</p>
+        </div>
+        <div class="card">
+            <h3>🛡️ Control total</h3>
+            <p>Edita tus horarios, servicios y medios de contacto al instante. Tú decides qué ven tus clientes.</p>
+        </div>
+    </section>
+
+</body>
+</html>

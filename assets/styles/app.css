@@ -1,3 +1,26 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: 'Outfit', 'Inter', system-ui, sans-serif;
+  --color-glass-bg: rgba(255, 255, 255, 0.4);
+  --color-glass-border: rgba(255, 255, 255, 0.5);
+}
+
+@layer components {
+  .glass-panel {
+    @apply bg-white/40 backdrop-blur-2xl ring-1 ring-white/50 shadow-xl shadow-black/5;
+  }
+  .glass-card {
+    @apply bg-white/60 backdrop-blur-xl ring-1 ring-white/50 shadow-lg shadow-black/5 rounded-[26px];
+  }
+  .glass-btn {
+    @apply bg-white/50 hover:bg-white/70 transition-colors backdrop-blur-md ring-1 ring-white/60 shadow-sm rounded-full text-gray-800 font-semibold px-4 py-2 inline-flex items-center justify-center;
+  }
+  .glass-btn-primary {
+    @apply bg-orange-500/90 hover:bg-orange-600 transition-colors backdrop-blur-md ring-1 ring-orange-400 shadow-sm rounded-full text-white font-semibold px-4 py-2 inline-flex items-center justify-center;
+  }
+}
+
 :root {
     --mm-brand: #f27f0d;
     --mm-brand-dark: #c45f04;
@@ -19,7 +42,7 @@ body {
     margin: 0;
     background-color: var(--mm-bg);
     color: var(--mm-title);
-    font-family: Outfit, Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    font-family: var(--font-sans);
 }
 
 * {

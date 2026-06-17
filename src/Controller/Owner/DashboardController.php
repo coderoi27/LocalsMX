@@ -14,7 +14,7 @@ use Symfony\Component\Routing\Attribute\Route;
 
 final class DashboardController extends AbstractController
 {
-    #[Route('/', name: 'locals_dashboard', methods: ['GET'])]
+    #[Route('/dashboard', name: 'locals_dashboard', methods: ['GET'])]
     public function __invoke(EntityManagerInterface $entityManager, CoreLocationGateway $coreLocationGateway): Response
     {
         $user = $this->getUser();
